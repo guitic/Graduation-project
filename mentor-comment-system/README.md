@@ -41,7 +41,12 @@ npm run dev
 ### 3. 切换 MySQL 模式（可选）
 
 1. 建库：`CREATE DATABASE mentor_comment DEFAULT CHARSET utf8mb4;`
-2. 修改 `backend/src/main/resources/application.yml` 中的 `spring.datasource`（用户名/密码）
+2. 设置数据库账号环境变量（**仓库中不含密码**）：
+   ```bash
+   export DB_USERNAME=root
+   export DB_PASSWORD=你的MySQL密码
+   ```
+   连接串在 `backend/src/main/resources/application.yml`，可用 `DB_USERNAME` / `DB_PASSWORD` 覆盖。
 3. 不带 `demo` profile 启动：`mvn -s ../maven-settings.xml spring-boot:run`
 4. 首次启动自动执行 `db/schema.sql` 建表，`DemoDataInitializer` 在无用户时生成种子数据
 
