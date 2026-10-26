@@ -3,6 +3,7 @@ package com.graduation.mentor.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.graduation.mentor.common.AuditItemMapper;
 import com.graduation.mentor.common.AuthContext;
 import com.graduation.mentor.common.BizException;
 import com.graduation.mentor.common.CommentScope;
@@ -13,30 +14,28 @@ import com.graduation.mentor.entity.Comment;
 import com.graduation.mentor.entity.CommentAudit;
 import com.graduation.mentor.mapper.CommentAuditMapper;
 import com.graduation.mentor.mapper.CommentMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 点评审核与发布服务。
  *
  * <p><b>本系统的核心不变量（论文"关键设计"一节可直接引用）</b>：
+ *
  * <ol>
- *   <li><b>状态迁移必须条件化</b>：一律 {@code UPDATE ... WHERE id=? AND status=?} 并检查影响行数，
- *       0 行返 409。先查后改（check-then-act）在并发下必然双写，两个教务同时点审核会各写一条记录。</li>
- *   <li><b>通过 ≠ 发布</b>：approve 可选立即发布或仅通过；发布是独立动作，只能从
- *       {@code APPROVED + published_at IS NULL} 迁移；撤回是发布的逆动作。</li>
- *   <li><b>发布是分析流程的唯一触发器</b>：只有发布时才执行情感分析，
- *       保证"学生可见 = 纳入统计"完全自洽。</li>
- *   <li><b>可追溯是单向的</b>：既然撤回要求理由，再发布也必须要求理由——
- *       否则"为什么压下来"有据可查、"为什么放回去"无从追溯。</li>
+ *   <li><b>状态迁移必须条件化</b>：一律 {@code UPDATE ... WHERE id=? AND status=?} 并检查影响行数， 0 行返
+ *       409。先查后改（check-then-act）在并发下必然双写，两个教务同时点审核会各写一条记录。
+ *   <li><b>通过 ≠ 发布</b>：approve 可选立即发布或仅通过；发布是独立动作，只能从 {@code APPROVED + published_at IS NULL}
+ *       迁移；撤回是发布的逆动作。
+ *   <li><b>发布是分析流程的唯一触发器</b>：只有发布时才执行情感分析， 保证"学生可见 = 纳入统计"完全自洽。
+ *   <li><b>可追溯是单向的</b>：既然撤回要求理由，再发布也必须要求理由—— 否则"为什么压下来"有据可查、"为什么放回去"无从追溯。
  * </ol>
  */
 @Slf4j
@@ -46,19 +45,23 @@ public class AuditService {
 
     /**
      * 审核意见字数门槛（与前端 auditRules 保持一致）。
-     * <p>设计原则：<b>门槛按动作性质分档，不按统一字数</b>；且<b>不设任何预填</b>——
-     * 预填会让"必填"沦为形式，`comment_audit` 填满同一句话，看起来有记录实则无信息。
+     *
+     * <p>设计原则：<b>门槛按动作性质分档，不按统一字数</b>；且<b>不设任何预填</b>—— 预填会让"必填"沦为形式，`comment_audit`
+     * 填满同一句话，看起来有记录实则无信息。
      */
     public static final int MIN_OPINION_APPROVE_PUBLISH = 5;
+
     public static final int MIN_OPINION_APPROVE_ONLY = 10;
     public static final int MIN_OPINION_RETURN = 10;
     public static final int MIN_OPINION_REJECT = 20;
     public static final int MIN_OPINION_UNPUBLISH = 10;
+
     /** 再发布（曾撤回过的点评重新发布）的理由门槛 */
     public static final int MIN_OPINION_REPUBLISH = 5;
 
     /** 事件类型 */
     public static final String ACT_SUBMIT = "SUBMIT";
+
     public static final String ACT_APPROVE_ONLY = "APPROVE_ONLY";
     public static final String ACT_APPROVE_PUBLISH = "APPROVE_PUBLISH";
     public static final String ACT_RETURN = "RETURN";
@@ -77,35 +80,40 @@ public class AuditService {
 
     public PageResult<CommentDtos.Row> pendingPage(CommentDtos.Query q) {
         requireAdmin();
-        LambdaQueryWrapper<Comment> w = new LambdaQueryWrapper<Comment>()
-                .eq(Comment::getStatus, CommentStatus.PENDING)
-                .orderByAsc(Comment::getSubmitAt)
-                .orderByAsc(Comment::getId);
+        LambdaQueryWrapper<Comment> w =
+                new LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getStatus, CommentStatus.PENDING)
+                        .orderByAsc(Comment::getSubmitAt)
+                        .orderByAsc(Comment::getId);
         return pageOf(w, q);
     }
 
     /**
      * 待发布列表（已通过但未发布）。
+     *
      * <p>排序：曾撤回过的置顶（这是"需要人处理"的强信号），其余按通过时间升序（FIFO 防饿死）。
      */
     public PageResult<CommentDtos.Row> unpublishedPage(CommentDtos.Query q) {
         requireAdmin();
-        LambdaQueryWrapper<Comment> w = CommentScope.approvedNotPublished()
-                .orderByDesc(Comment::getWithdrawnAt)
-                .orderByAsc(Comment::getUpdatedAt)
-                .orderByAsc(Comment::getId);
+        LambdaQueryWrapper<Comment> w =
+                CommentScope.approvedNotPublished()
+                        .orderByDesc(Comment::getWithdrawnAt)
+                        .orderByAsc(Comment::getUpdatedAt)
+                        .orderByAsc(Comment::getId);
         return pageOf(w, q);
     }
 
     /**
      * 已发布列表（供教务执行「撤回」）。
+     *
      * <p>按发布时间倒序，最近发布的排在最前，便于定位误发布的内容。
      */
     public PageResult<CommentDtos.Row> publishedPage(CommentDtos.Query q) {
         requireAdmin();
-        LambdaQueryWrapper<Comment> w = CommentScope.published()
-                .orderByDesc(Comment::getPublishedAt)
-                .orderByDesc(Comment::getId);
+        LambdaQueryWrapper<Comment> w =
+                CommentScope.published()
+                        .orderByDesc(Comment::getPublishedAt)
+                        .orderByDesc(Comment::getId);
         return pageOf(w, q);
     }
 
@@ -119,8 +127,8 @@ public class AuditService {
     }
 
     public long pendingCount() {
-        return commentMapper.selectCount(new LambdaQueryWrapper<Comment>()
-                .eq(Comment::getStatus, CommentStatus.PENDING));
+        return commentMapper.selectCount(
+                new LambdaQueryWrapper<Comment>().eq(Comment::getStatus, CommentStatus.PENDING));
     }
 
     // ------------------------------------------------------------------ 审核动作
@@ -129,18 +137,20 @@ public class AuditService {
     @Transactional
     public void approve(Long id, CommentDtos.AuditReq req) {
         requireAdmin();
-        checkOpinion(req.getOpinion(),
+        checkOpinion(
+                req.getOpinion(),
                 req.isPublish() ? MIN_OPINION_APPROVE_PUBLISH : MIN_OPINION_APPROVE_ONLY,
                 req.isPublish() ? "通过并发布" : "仅通过");
 
         Comment c = mustGet(id);
         LocalDateTime now = LocalDateTime.now();
 
-        LambdaUpdateWrapper<Comment> u = new LambdaUpdateWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .eq(Comment::getStatus, CommentStatus.PENDING)
-                .set(Comment::getStatus, CommentStatus.APPROVED)
-                .set(Comment::getUpdatedAt, now);
+        LambdaUpdateWrapper<Comment> u =
+                new LambdaUpdateWrapper<Comment>()
+                        .eq(Comment::getId, id)
+                        .eq(Comment::getStatus, CommentStatus.PENDING)
+                        .set(Comment::getStatus, CommentStatus.APPROVED)
+                        .set(Comment::getUpdatedAt, now);
         if (req.isPublish()) {
             u.set(Comment::getPublishedAt, now);
         }
@@ -149,11 +159,19 @@ public class AuditService {
             throw BizException.conflict("该点评状态已变化（可能已被其他教务处理），请刷新后重试");
         }
 
-        writeEvent(id, CommentStatus.APPROVED,
+        writeEvent(
+                id,
+                CommentStatus.APPROVED,
                 req.isPublish() ? ACT_APPROVE_PUBLISH : ACT_APPROVE_ONLY,
-                req.getOpinion(), null, c.getVersion(), now);
-        operLogService.record(req.isPublish() ? ACT_APPROVE_PUBLISH : ACT_APPROVE_ONLY,
-                "COMMENT", id, req.getOpinion());
+                req.getOpinion(),
+                null,
+                c.getVersion(),
+                now);
+        operLogService.record(
+                req.isPublish() ? ACT_APPROVE_PUBLISH : ACT_APPROVE_ONLY,
+                "COMMENT",
+                id,
+                req.getOpinion());
 
         if (req.isPublish()) {
             analysisService.analyzeAndSave(commentMapper.selectById(id));
@@ -167,15 +185,25 @@ public class AuditService {
 
         Comment c = mustGet(id);
         LocalDateTime now = LocalDateTime.now();
-        int rows = commentMapper.update(null, new LambdaUpdateWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .eq(Comment::getStatus, CommentStatus.PENDING)
-                .set(Comment::getStatus, CommentStatus.RETURNED)
-                .set(Comment::getUpdatedAt, now));
+        int rows =
+                commentMapper.update(
+                        null,
+                        new LambdaUpdateWrapper<Comment>()
+                                .eq(Comment::getId, id)
+                                .eq(Comment::getStatus, CommentStatus.PENDING)
+                                .set(Comment::getStatus, CommentStatus.RETURNED)
+                                .set(Comment::getUpdatedAt, now));
         if (rows == 0) {
             throw BizException.conflict("该点评状态已变化，请刷新后重试");
         }
-        writeEvent(id, CommentStatus.RETURNED, ACT_RETURN, req.getOpinion(), c.getContent(), c.getVersion(), now);
+        writeEvent(
+                id,
+                CommentStatus.RETURNED,
+                ACT_RETURN,
+                req.getOpinion(),
+                c.getContent(),
+                c.getVersion(),
+                now);
         operLogService.record(ACT_RETURN, "COMMENT", id, req.getOpinion());
     }
 
@@ -186,22 +214,33 @@ public class AuditService {
 
         Comment c = mustGet(id);
         LocalDateTime now = LocalDateTime.now();
-        int rows = commentMapper.update(null, new LambdaUpdateWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .eq(Comment::getStatus, CommentStatus.PENDING)
-                .set(Comment::getStatus, CommentStatus.REJECTED)
-                .set(Comment::getUpdatedAt, now));
+        int rows =
+                commentMapper.update(
+                        null,
+                        new LambdaUpdateWrapper<Comment>()
+                                .eq(Comment::getId, id)
+                                .eq(Comment::getStatus, CommentStatus.PENDING)
+                                .set(Comment::getStatus, CommentStatus.REJECTED)
+                                .set(Comment::getUpdatedAt, now));
         if (rows == 0) {
             throw BizException.conflict("该点评状态已变化，请刷新后重试");
         }
-        writeEvent(id, CommentStatus.REJECTED, ACT_REJECT, req.getOpinion(), c.getContent(), c.getVersion(), now);
+        writeEvent(
+                id,
+                CommentStatus.REJECTED,
+                ACT_REJECT,
+                req.getOpinion(),
+                c.getContent(),
+                c.getVersion(),
+                now);
         operLogService.record(ACT_REJECT, "COMMENT", id, req.getOpinion());
     }
 
     /**
      * 发布（单条）。只能从「已通过且未发布」迁移。
-     * <p><b>不提供批量发布</b>：批量更新极易写成 {@code WHERE id IN (...)} 的裸 SQL，
-     * 绕过逐条状态校验，是状态机被破坏的主要入口，且答辩零增量。
+     *
+     * <p><b>不提供批量发布</b>：批量更新极易写成 {@code WHERE id IN (...)} 的裸 SQL， 绕过逐条状态校验，是状态机被破坏的主要入口，且答辩零增量。
+     *
      * <p>若该点评曾被撤回（{@code withdrawnAt != null}），则属于"再发布"，必须填理由 ≥5 字。
      */
     @Transactional
@@ -217,17 +256,20 @@ public class AuditService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        int rows = commentMapper.update(null, new LambdaUpdateWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .eq(Comment::getStatus, CommentStatus.APPROVED)
-                .isNull(Comment::getPublishedAt)
-                .set(Comment::getPublishedAt, now)
-                .set(Comment::getUpdatedAt, now));
+        int rows =
+                commentMapper.update(
+                        null,
+                        new LambdaUpdateWrapper<Comment>()
+                                .eq(Comment::getId, id)
+                                .eq(Comment::getStatus, CommentStatus.APPROVED)
+                                .isNull(Comment::getPublishedAt)
+                                .set(Comment::getPublishedAt, now)
+                                .set(Comment::getUpdatedAt, now));
         if (rows == 0) {
             throw BizException.conflict("该点评已发布，请勿重复操作");
         }
-        writeEvent(id, "PUBLISHED", ACT_PUBLISH,
-                republish ? reason : null, null, c.getVersion(), now);
+        writeEvent(
+                id, "PUBLISHED", ACT_PUBLISH, republish ? reason : null, null, c.getVersion(), now);
         operLogService.record(ACT_PUBLISH, "COMMENT", id, republish ? reason : "首次发布");
 
         // 文本未变则复用分析结果；已变则重算（由 ensureAnalyzed 统一判定）
@@ -236,9 +278,11 @@ public class AuditService {
 
     /**
      * 撤回发布：publishedAt 置回 null，同时记录 withdrawnAt。
-     * <p>因为"学生可见 / 纳入统计"全部只认 publishedAt，撤回后学生端、报表、词云、
-     * 明细下钻、导出会自动剔除，无需任何额外改动——这是把发布做成独立字段的红利。
+     *
+     * <p>因为"学生可见 / 纳入统计"全部只认 publishedAt，撤回后学生端、报表、词云、 明细下钻、导出会自动剔除，无需任何额外改动——这是把发布做成独立字段的红利。
+     *
      * <p>边界：撤回仅控制后续可见性，不追溯已发生的查看；系统不记录学生阅读行为。
+     *
      * <p>撤回次数不设上限（可通过事件流统计），每次撤回都留痕。
      */
     @Transactional
@@ -251,13 +295,16 @@ public class AuditService {
             throw BizException.conflict("该点评尚未发布，无需撤回");
         }
         LocalDateTime now = LocalDateTime.now();
-        int rows = commentMapper.update(null, new LambdaUpdateWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .eq(Comment::getStatus, CommentStatus.APPROVED)
-                .isNotNull(Comment::getPublishedAt)
-                .set(Comment::getPublishedAt, null)
-                .set(Comment::getWithdrawnAt, now)
-                .set(Comment::getUpdatedAt, now));
+        int rows =
+                commentMapper.update(
+                        null,
+                        new LambdaUpdateWrapper<Comment>()
+                                .eq(Comment::getId, id)
+                                .eq(Comment::getStatus, CommentStatus.APPROVED)
+                                .isNotNull(Comment::getPublishedAt)
+                                .set(Comment::getPublishedAt, null)
+                                .set(Comment::getWithdrawnAt, now)
+                                .set(Comment::getUpdatedAt, now));
         if (rows == 0) {
             throw BizException.conflict("该点评状态已变化，无法撤回");
         }
@@ -265,33 +312,41 @@ public class AuditService {
         operLogService.record(ACT_WITHDRAW, "COMMENT", id, reason);
     }
 
-    /** 事件时间线（升序 + id 兜底，保证同一秒内多条事件顺序稳定） */
+    /**
+     * 事件时间线（升序 + id 兜底，保证同一秒内多条事件顺序稳定）。
+     *
+     * <p><b>权限与 {@link CommentService#detail(Long)} 完全一致</b>： 管理员全量 / 导师仅本人 / 学生仅本人且已发布。
+     *
+     * <p>这里曾漏掉数据范围校验，导致任意登录用户（含学生）可用自己 token 遍历 id， 通过 {@code GET /api/audit/{id}/history}
+     * 读到任意点评的审核意见与修改前正文， 与"审核意见永不进学生端"的设计承诺直接冲突。 修复方式是复用 {@link
+     * CommentService#assertCanView}——不再另写一套判定， 否则下次新增入口仍会漏。
+     */
     public List<CommentDtos.AuditItem> audits(Long commentId) {
-        List<CommentAudit> list = auditMapper.selectList(new LambdaQueryWrapper<CommentAudit>()
-                .eq(CommentAudit::getCommentId, commentId)
-                .orderByAsc(CommentAudit::getAuditAt)
-                .orderByAsc(CommentAudit::getId));
-        List<CommentDtos.AuditItem> out = new ArrayList<>();
-        for (CommentAudit a : list) {
-            CommentDtos.AuditItem it = new CommentDtos.AuditItem();
-            it.setId(a.getId());
-            it.setResult(a.getResult());
-            it.setActionType(a.getActionType());
-            it.setResultLabel(CommentService.actionLabel(a.getActionType(), a.getResult()));
-            it.setOpinion(a.getOpinion());
-            it.setAuditorName(a.getAuditorName());
-            it.setRound(a.getRound());
-            it.setAuditAt(a.getAuditAt());
-            it.setBeforeContent(a.getBeforeContent());
-            out.add(it);
-        }
-        return out;
+        Comment c = mustGet(commentId);
+        commentService.assertCanView(c);
+
+        boolean forStudent = authContext.isStudent();
+        return auditMapper
+                .selectList(
+                        new LambdaQueryWrapper<CommentAudit>()
+                                .eq(CommentAudit::getCommentId, commentId)
+                                .orderByAsc(CommentAudit::getAuditAt)
+                                .orderByAsc(CommentAudit::getId))
+                .stream()
+                .map(a -> AuditItemMapper.of(a, forStudent))
+                .toList();
     }
 
     // ------------------------------------------------------------------ 内部
 
-    public void writeEvent(Long commentId, String result, String actionType, String opinion,
-                           String beforeContent, Integer round, LocalDateTime at) {
+    public void writeEvent(
+            Long commentId,
+            String result,
+            String actionType,
+            String opinion,
+            String beforeContent,
+            Integer round,
+            LocalDateTime at) {
         CommentAudit a = new CommentAudit();
         a.setCommentId(commentId);
         a.setAuditorId(authContext.userId());
@@ -307,8 +362,7 @@ public class AuditService {
 
     private void checkOpinion(String opinion, int min, String action) {
         if (opinion == null || opinion.trim().length() < min) {
-            throw new BizException(400,
-                    action + "的意见至少需 " + min + " 字，请补充具体说明");
+            throw new BizException(400, action + "的意见至少需 " + min + " 字，请补充具体说明");
         }
     }
 

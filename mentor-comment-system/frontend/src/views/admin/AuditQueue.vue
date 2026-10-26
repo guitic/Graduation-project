@@ -11,10 +11,23 @@
     </div>
 
     <div class="mc-card filter-bar">
-      <el-select v-model="query.term" placeholder="全部学期" clearable class="f-item" @change="onSearch">
+      <el-select
+        v-model="query.term"
+        placeholder="全部学期"
+        clearable
+        class="f-item"
+        @change="onSearch"
+      >
         <el-option v-for="t in terms" :key="t" :label="t" :value="t" />
       </el-select>
-      <el-select v-model="query.teacherId" placeholder="全部导师" clearable filterable class="f-item" @change="onSearch">
+      <el-select
+        v-model="query.teacherId"
+        placeholder="全部导师"
+        clearable
+        filterable
+        class="f-item"
+        @change="onSearch"
+      >
         <el-option v-for="t in teachers" :key="t.id" :label="t.name" :value="t.id" />
       </el-select>
       <el-input
@@ -29,7 +42,7 @@
       <el-button :icon="Search" @click="onSearch">查询</el-button>
     </div>
 
-    <div class="mc-card table-card" v-loading="loading">
+    <div v-loading="loading" class="mc-card table-card">
       <el-table :data="rows" stripe row-key="id">
         <el-table-column label="学生" min-width="120">
           <template #default="{ row }">
@@ -43,7 +56,9 @@
         <el-table-column prop="teacherName" label="导师" width="100" />
         <el-table-column label="主题" min-width="150">
           <template #default="{ row }">
-            <el-link type="primary" :underline="false" @click="openDetail(row)">{{ row.topic }}</el-link>
+            <el-link type="primary" :underline="false" @click="openDetail(row)">{{
+              row.topic
+            }}</el-link>
           </template>
         </el-table-column>
         <el-table-column prop="term" label="学期" width="120" />
@@ -56,14 +71,23 @@
           <template #default="{ row }">
             <div class="op-group">
               <el-button text type="primary" size="small" @click="openDetail(row)">查看</el-button>
-              <el-button text type="success" size="small" @click="openAction(row, 'approvePublish')">
+              <el-button
+                text
+                type="success"
+                size="small"
+                @click="openAction(row, 'approvePublish')"
+              >
                 通过发布
               </el-button>
               <el-button text type="primary" size="small" @click="openAction(row, 'approveOnly')">
                 仅通过
               </el-button>
-              <el-button text type="warning" size="small" @click="openAction(row, 'return')">退回</el-button>
-              <el-button text type="danger" size="small" @click="openAction(row, 'reject')">驳回</el-button>
+              <el-button text type="warning" size="small" @click="openAction(row, 'return')"
+                >退回</el-button
+              >
+              <el-button text type="danger" size="small" @click="openAction(row, 'reject')"
+                >驳回</el-button
+              >
             </div>
           </template>
         </el-table-column>
@@ -85,9 +109,16 @@
     </div>
 
     <!-- 审核动作弹窗 -->
-    <el-dialog v-model="actionVisible" :title="act.title" width="540px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="actionVisible"
+      :title="act.title"
+      width="540px"
+      :close-on-click-modal="false"
+    >
       <div class="act-target">
-        <div class="at-row"><span class="at-k">学生</span>{{ target?.studentName }} · {{ target?.clazzName }}</div>
+        <div class="at-row">
+          <span class="at-k">学生</span>{{ target?.studentName }} · {{ target?.clazzName }}
+        </div>
         <div class="at-row"><span class="at-k">主题</span>{{ target?.topic }}</div>
         <div class="at-tip" :class="act.tone">{{ act.tip }}</div>
       </div>
@@ -127,18 +158,32 @@
         <div class="d-content">{{ current.content }}</div>
 
         <!-- 可解释性：情感分析依据 -->
-        <div class="analysis-box" v-loading="analysisLoading">
+        <div v-loading="analysisLoading" class="analysis-box">
           <div class="ab-head">
             <span>情感分析依据</span>
-            <el-tag size="small" effect="plain" round>{{ analysis?.methodVersion || 'lexicon-v1' }}</el-tag>
+            <el-tag size="small" effect="plain" round>{{
+              analysis?.methodVersion || 'lexicon-v1'
+            }}</el-tag>
           </div>
           <template v-if="analysis?.live">
             <div class="ab-summary">
-              <SentimentTag :label="analysis.live.label" :low-confidence="analysis.live.lowConfidence" />
-              <span class="ab-kv">净得分 <b class="mc-mono">{{ analysis.live.score?.toFixed(2) }}</b></span>
-              <span class="ab-kv">置信度 <b class="mc-mono">{{ (analysis.live.confidence * 100).toFixed(0) }}%</b></span>
-              <span class="ab-kv">正向词 <b class="mc-mono">{{ analysis.live.posHits }}</b></span>
-              <span class="ab-kv">负向词 <b class="mc-mono">{{ analysis.live.negHits }}</b></span>
+              <SentimentTag
+                :label="analysis.live.label"
+                :low-confidence="analysis.live.lowConfidence"
+              />
+              <span class="ab-kv"
+                >净得分 <b class="mc-mono">{{ analysis.live.score?.toFixed(2) }}</b></span
+              >
+              <span class="ab-kv"
+                >置信度
+                <b class="mc-mono">{{ (analysis.live.confidence * 100).toFixed(0) }}%</b></span
+              >
+              <span class="ab-kv"
+                >正向词 <b class="mc-mono">{{ analysis.live.posHits }}</b></span
+              >
+              <span class="ab-kv"
+                >负向词 <b class="mc-mono">{{ analysis.live.negHits }}</b></span
+              >
             </div>
             <div v-if="analysis.live.hits?.length" class="hits">
               <span class="hits-label">命中词：</span>
@@ -175,7 +220,7 @@ import { Refresh, Search } from '@element-plus/icons-vue'
 import StatusTag from '../../components/StatusTag.vue'
 import SentimentTag from '../../components/SentimentTag.vue'
 import AuditTimeline from '../../components/AuditTimeline.vue'
-import { pendingPage, approve, returnBack, reject, history } from '../../api/audit'
+import { pendingPage, approve, returnBack, reject } from '../../api/audit'
 import { detail as commentDetail } from '../../api/comment'
 import { commentSentiment } from '../../api/report'
 import { terms as termsApi, teachers as teachersApi } from '../../api/person'
@@ -206,7 +251,8 @@ const ACTIONS = {
     btnType: 'primary',
     tone: 'info',
     tip: '仅通过后进入「待发布」，学生暂不可见、不纳入统计，可在待发布列表再次发布。',
-    placeholder: '请填写仅通过、暂不发布的理由（≥10 字），如：内容需进一步核实，先通过但暂不推送学生。'
+    placeholder:
+      '请填写仅通过、暂不发布的理由（≥10 字），如：内容需进一步核实，先通过但暂不推送学生。'
   },
   return: {
     title: '退回修改',

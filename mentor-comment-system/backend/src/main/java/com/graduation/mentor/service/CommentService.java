@@ -3,6 +3,7 @@ package com.graduation.mentor.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.graduation.mentor.common.AuditItemMapper;
 import com.graduation.mentor.common.AuthContext;
 import com.graduation.mentor.common.BizException;
 import com.graduation.mentor.common.CommentScope;
@@ -25,23 +26,24 @@ import com.graduation.mentor.mapper.MajorMapper;
 import com.graduation.mentor.mapper.StudentMapper;
 import com.graduation.mentor.mapper.TeacherMapper;
 import com.graduation.mentor.mapper.TeacherStudentMapper;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 点评提交与查询服务。
+ *
  * <p>权限模型：
+ *
  * <ul>
- *   <li>导师：仅本人提交的点评（含草稿），且只能提交给指导关系内的学生</li>
- *   <li>教务：全部点评</li>
- *   <li>学生：仅本人「已发布」的点评</li>
+ *   <li>导师：仅本人提交的点评（含草稿），且只能提交给指导关系内的学生
+ *   <li>教务：全部点评
+ *   <li>学生：仅本人「已发布」的点评
  * </ul>
  */
 @Service
@@ -91,12 +93,14 @@ public class CommentService {
         PageResult<CommentDtos.Row> result = page(w, q);
         // 学生端列表同样不携带「审核意见 / 情感标签」：
         // 审核意见是教务与导师的内部沟通；情感标签的对象是导师文本，展示给学生会被误读为对自己的评价。
-        result.getRecords().forEach(r -> {
-            r.setLastOpinion(null);
-            r.setLastAuditor(null);
-            r.setSentimentLabel(null);
-            r.setLowConfidence(false);
-        });
+        result.getRecords()
+                .forEach(
+                        r -> {
+                            r.setLastOpinion(null);
+                            r.setLastAuditor(null);
+                            r.setSentimentLabel(null);
+                            r.setLowConfidence(false);
+                        });
         return result;
     }
 
@@ -121,9 +125,14 @@ public class CommentService {
             w.eq(Comment::getStudentId, q.getStudentId());
         }
         if (q.getClazzId() != null) {
-            List<Long> ids = studentMapper.selectList(new LambdaQueryWrapper<Student>()
-                            .eq(Student::getClazzId, q.getClazzId()))
-                    .stream().map(Student::getId).toList();
+            List<Long> ids =
+                    studentMapper
+                            .selectList(
+                                    new LambdaQueryWrapper<Student>()
+                                            .eq(Student::getClazzId, q.getClazzId()))
+                            .stream()
+                            .map(Student::getId)
+                            .toList();
             if (ids.isEmpty()) {
                 w.eq(Comment::getId, -1L);
             } else {
@@ -131,15 +140,24 @@ public class CommentService {
             }
         }
         if (q.getKeyword() != null && !q.getKeyword().isBlank()) {
-            List<Long> sids = studentMapper.selectList(new LambdaQueryWrapper<Student>()
-                            .like(Student::getName, q.getKeyword())
-                            .or().like(Student::getStudentNo, q.getKeyword()))
-                    .stream().map(Student::getId).toList();
+            List<Long> sids =
+                    studentMapper
+                            .selectList(
+                                    new LambdaQueryWrapper<Student>()
+                                            .like(Student::getName, q.getKeyword())
+                                            .or()
+                                            .like(Student::getStudentNo, q.getKeyword()))
+                            .stream()
+                            .map(Student::getId)
+                            .toList();
             if (sids.isEmpty()) {
                 w.like(Comment::getContent, q.getKeyword());
             } else {
-                w.and(x -> x.like(Comment::getContent, q.getKeyword())
-                        .or().in(Comment::getStudentId, sids));
+                w.and(
+                        x ->
+                                x.like(Comment::getContent, q.getKeyword())
+                                        .or()
+                                        .in(Comment::getStudentId, sids));
             }
         }
         if (q.getStartDate() != null && !q.getStartDate().isBlank()) {
@@ -173,32 +191,31 @@ public class CommentService {
         CommentDtos.Detail d = new CommentDtos.Detail();
         d.setComment(toRow(c, new HashMap<>(), new HashMap<>()));
 
-        List<CommentAudit> audits = auditMapper.selectList(new LambdaQueryWrapper<CommentAudit>()
-                .eq(CommentAudit::getCommentId, id).orderByAsc(CommentAudit::getAuditAt));
-        List<CommentDtos.AuditItem> items = new ArrayList<>();
-        for (CommentAudit a : audits) {
-            CommentDtos.AuditItem it = new CommentDtos.AuditItem();
-            it.setId(a.getId());
-            it.setResult(a.getResult());
-            it.setResultLabel(actionLabel(a.getActionType(), a.getResult()));
-            // 设计规则：审核意见永不进学生端
-            it.setOpinion(authContext.isStudent() ? null : a.getOpinion());
-            it.setAuditorName(a.getAuditorName());
-            it.setRound(a.getRound());
-            it.setAuditAt(a.getAuditAt());
-            it.setBeforeContent(authContext.isStudent() ? null : a.getBeforeContent());
-            items.add(it);
-        }
-        d.setAudits(items);
+        List<CommentAudit> audits =
+                auditMapper.selectList(
+                        new LambdaQueryWrapper<CommentAudit>()
+                                .eq(CommentAudit::getCommentId, id)
+                                .orderByAsc(CommentAudit::getAuditAt));
+        // 裁剪规则只在 AuditItemMapper 一处实现（审核意见永不进学生端）
+        boolean forStudent = authContext.isStudent();
+        d.setAudits(audits.stream().map(a -> AuditItemMapper.of(a, forStudent)).toList());
 
-        CommentSentiment s = sentimentMapper.selectOne(new LambdaQueryWrapper<CommentSentiment>()
-                .eq(CommentSentiment::getCommentId, id).last("limit 1"));
+        CommentSentiment s =
+                sentimentMapper.selectOne(
+                        new LambdaQueryWrapper<CommentSentiment>()
+                                .eq(CommentSentiment::getCommentId, id)
+                                .last("limit 1"));
         d.setSentiment(s);
         return d;
     }
 
-    /** 学生可见性校验：必须是本人 + 已发布 */
-    private void assertCanView(Comment c) {
+    /**
+     * 数据范围校验：管理员全量 / 导师仅本人 / 学生仅本人且已发布。
+     *
+     * <p><b>为什么是 public</b>：这是"谁能看这条点评"的唯一实现。 {@link AuditService#audits(Long)} 也需要同一判定，若各自写一份，
+     * 迟早出现"一个接口校验了、另一个忘了"——本项目已经因此出过一次越权。 新增任何"按 id 读点评"的入口，都必须先调用这里，禁止另写一套。
+     */
+    public void assertCanView(Comment c) {
         if (authContext.isAdmin()) {
             return;
         }
@@ -211,7 +228,8 @@ public class CommentService {
         }
         // 学生
         Long sid = currentStudentId();
-        boolean published = CommentStatus.APPROVED.equals(c.getStatus()) && c.getPublishedAt() != null;
+        boolean published =
+                CommentStatus.APPROVED.equals(c.getStatus()) && c.getPublishedAt() != null;
         if (!sid.equals(c.getStudentId()) || !published) {
             operLogService.record("VIEW_COMMENT", "COMMENT", c.getId(), "越权访问他人或未发布点评", false);
             throw BizException.forbidden("无权查看该点评");
@@ -241,8 +259,11 @@ public class CommentService {
             c.setStatus(CommentStatus.DRAFT);
         }
         commentMapper.insert(c);
-        operLogService.record(req.isSubmit() ? "SUBMIT_COMMENT" : "SAVE_DRAFT",
-                "COMMENT", c.getId(), c.getTopic());
+        operLogService.record(
+                req.isSubmit() ? "SUBMIT_COMMENT" : "SAVE_DRAFT",
+                "COMMENT",
+                c.getId(),
+                c.getTopic());
         return c.getId();
     }
 
@@ -260,14 +281,15 @@ public class CommentService {
         }
         assertGuiding(teacherId, req.getStudentId());
 
-        LambdaUpdateWrapper<Comment> u = new LambdaUpdateWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .in(Comment::getStatus, CommentStatus.DRAFT, CommentStatus.RETURNED)
-                .set(Comment::getStudentId, req.getStudentId())
-                .set(Comment::getTerm, req.getTerm())
-                .set(Comment::getTopic, req.getTopic())
-                .set(Comment::getContent, req.getContent())
-                .set(Comment::getUpdatedAt, LocalDateTime.now());
+        LambdaUpdateWrapper<Comment> u =
+                new LambdaUpdateWrapper<Comment>()
+                        .eq(Comment::getId, id)
+                        .in(Comment::getStatus, CommentStatus.DRAFT, CommentStatus.RETURNED)
+                        .set(Comment::getStudentId, req.getStudentId())
+                        .set(Comment::getTerm, req.getTerm())
+                        .set(Comment::getTopic, req.getTopic())
+                        .set(Comment::getContent, req.getContent())
+                        .set(Comment::getUpdatedAt, LocalDateTime.now());
         if (req.isSubmit()) {
             u.set(Comment::getStatus, CommentStatus.PENDING)
                     .set(Comment::getSubmitAt, LocalDateTime.now())
@@ -277,7 +299,8 @@ public class CommentService {
         if (rows == 0) {
             throw BizException.conflict("当前状态不允许修改（仅草稿或退回修改状态可编辑）");
         }
-        operLogService.record(req.isSubmit() ? "RESUBMIT_COMMENT" : "UPDATE_DRAFT", "COMMENT", id, c.getTopic());
+        operLogService.record(
+                req.isSubmit() ? "RESUBMIT_COMMENT" : "UPDATE_DRAFT", "COMMENT", id, c.getTopic());
     }
 
     /** 草稿直接提交 */
@@ -291,12 +314,15 @@ public class CommentService {
         if (!teacherId.equals(c.getTeacherId())) {
             throw BizException.forbidden("无权提交该点评");
         }
-        int rows = commentMapper.update(null, new LambdaUpdateWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .in(Comment::getStatus, CommentStatus.DRAFT, CommentStatus.RETURNED)
-                .set(Comment::getStatus, CommentStatus.PENDING)
-                .set(Comment::getSubmitAt, LocalDateTime.now())
-                .set(Comment::getUpdatedAt, LocalDateTime.now()));
+        int rows =
+                commentMapper.update(
+                        null,
+                        new LambdaUpdateWrapper<Comment>()
+                                .eq(Comment::getId, id)
+                                .in(Comment::getStatus, CommentStatus.DRAFT, CommentStatus.RETURNED)
+                                .set(Comment::getStatus, CommentStatus.PENDING)
+                                .set(Comment::getSubmitAt, LocalDateTime.now())
+                                .set(Comment::getUpdatedAt, LocalDateTime.now()));
         if (rows == 0) {
             throw BizException.conflict("当前状态不允许提交（仅草稿或退回修改状态可提交）");
         }
@@ -314,9 +340,11 @@ public class CommentService {
         if (!teacherId.equals(c.getTeacherId())) {
             throw BizException.forbidden("无权删除该点评");
         }
-        int rows = commentMapper.delete(new LambdaQueryWrapper<Comment>()
-                .eq(Comment::getId, id)
-                .eq(Comment::getStatus, CommentStatus.DRAFT));
+        int rows =
+                commentMapper.delete(
+                        new LambdaQueryWrapper<Comment>()
+                                .eq(Comment::getId, id)
+                                .eq(Comment::getStatus, CommentStatus.DRAFT));
         if (rows == 0) {
             throw BizException.conflict("仅草稿状态可删除");
         }
@@ -325,10 +353,12 @@ public class CommentService {
 
     /** 指导关系校验：导师只能给自己指导的学生写点评 */
     public void assertGuiding(Long teacherId, Long studentId) {
-        Long cnt = teacherStudentMapper.selectCount(new LambdaQueryWrapper<TeacherStudent>()
-                .eq(TeacherStudent::getTeacherId, teacherId)
-                .eq(TeacherStudent::getStudentId, studentId)
-                .eq(TeacherStudent::getStatus, 1));
+        Long cnt =
+                teacherStudentMapper.selectCount(
+                        new LambdaQueryWrapper<TeacherStudent>()
+                                .eq(TeacherStudent::getTeacherId, teacherId)
+                                .eq(TeacherStudent::getStudentId, studentId)
+                                .eq(TeacherStudent::getStatus, 1));
         if (cnt == null || cnt == 0) {
             operLogService.record("SUBMIT_COMMENT", "STUDENT", studentId, "非指导关系学生，已拒绝", false);
             throw BizException.forbidden("该学生不在您的指导范围内，无法提交点评");
@@ -339,8 +369,11 @@ public class CommentService {
         if (!authContext.isStudent()) {
             throw BizException.forbidden("仅学生可访问");
         }
-        Student s = studentMapper.selectOne(new LambdaQueryWrapper<Student>()
-                .eq(Student::getUserId, authContext.userId()).last("limit 1"));
+        Student s =
+                studentMapper.selectOne(
+                        new LambdaQueryWrapper<Student>()
+                                .eq(Student::getUserId, authContext.userId())
+                                .last("limit 1"));
         if (s == null) {
             throw BizException.forbidden("当前账号未绑定学生档案");
         }
@@ -349,14 +382,18 @@ public class CommentService {
 
     // ------------------------------------------------------------------ 行转换
 
-    public CommentDtos.Row toRow(Comment c, Map<Long, String> tNameCache, Map<Long, Student> sCache) {
+    public CommentDtos.Row toRow(
+            Comment c, Map<Long, String> tNameCache, Map<Long, Student> sCache) {
         CommentDtos.Row r = new CommentDtos.Row();
         r.setId(c.getId());
         r.setTeacherId(c.getTeacherId());
-        r.setTeacherName(tNameCache.computeIfAbsent(c.getTeacherId(), tid -> {
-            Teacher t = teacherMapper.selectById(tid);
-            return t == null ? "未知导师" : t.getName();
-        }));
+        r.setTeacherName(
+                tNameCache.computeIfAbsent(
+                        c.getTeacherId(),
+                        tid -> {
+                            Teacher t = teacherMapper.selectById(tid);
+                            return t == null ? "未知导师" : t.getName();
+                        }));
         Student s = sCache.computeIfAbsent(c.getStudentId(), sid -> studentMapper.selectById(sid));
         if (s != null) {
             r.setStudentId(s.getId());
@@ -382,42 +419,27 @@ public class CommentService {
         r.setCreatedAt(c.getCreatedAt());
         r.setVersion(c.getVersion());
 
-        CommentSentiment se = sentimentMapper.selectOne(new LambdaQueryWrapper<CommentSentiment>()
-                .eq(CommentSentiment::getCommentId, c.getId()).last("limit 1"));
+        CommentSentiment se =
+                sentimentMapper.selectOne(
+                        new LambdaQueryWrapper<CommentSentiment>()
+                                .eq(CommentSentiment::getCommentId, c.getId())
+                                .last("limit 1"));
         if (se != null) {
             r.setSentimentLabel(se.getLabel());
             r.setLowConfidence(se.getLowConfidence() != null && se.getLowConfidence() == 1);
         }
 
-        CommentAudit last = auditMapper.selectOne(new LambdaQueryWrapper<CommentAudit>()
-                .eq(CommentAudit::getCommentId, c.getId())
-                .orderByDesc(CommentAudit::getAuditAt).last("limit 1"));
+        CommentAudit last =
+                auditMapper.selectOne(
+                        new LambdaQueryWrapper<CommentAudit>()
+                                .eq(CommentAudit::getCommentId, c.getId())
+                                .orderByDesc(CommentAudit::getAuditAt)
+                                .last("limit 1"));
         if (last != null) {
             r.setLastOpinion(authContext.isStudent() ? null : last.getOpinion());
             r.setLastAuditAt(last.getAuditAt());
             r.setLastAuditor(last.getAuditorName());
         }
         return r;
-    }
-
-    /**
-     * 事件标题：按 actionType 映射，而不是按 result。
-     * <p>否则"仅通过"与"通过并发布"都渲染成"通过"，撤回渲染成"审核"，
-     * 时间线上看起来像教务审了两次——字段标题必须随事件类型变。
-     */
-    public static String actionLabel(String actionType, String result) {
-        if (actionType == null) {
-            return result;
-        }
-        return switch (actionType) {
-            case "SUBMIT" -> "提交审核";
-            case "APPROVE_PUBLISH" -> "审核通过并发布";
-            case "APPROVE_ONLY" -> "审核通过（待发布）";
-            case "RETURN" -> "退回修改";
-            case "REJECT" -> "驳回";
-            case "PUBLISH" -> "发布";
-            case "WITHDRAW" -> "撤回发布";
-            default -> result;
-        };
     }
 }
