@@ -1,0 +1,36 @@
+# ---- Java / Maven ----
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+
+# ---- Node / 前端 ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+pnpm-debug.log*
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+
+# ---- 环境与密钥 ----
+.env
+.env.*
+!.env.example
+*.p12
+*.jks
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+
+# ---- 测试产物 ----
+target/sentiment-eval/
+coverage/
