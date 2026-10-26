@@ -101,6 +101,74 @@
                     </excludes>
                 </configuration>
             </plugin>
+
+            <!--
+                格式：交给 Spotless 自动修复，不做人工争论。
+                AOSP 风格 = 4 空格缩进，与本项目现有代码一致；google 风格是 2 空格，会全量重排。
+                首次执行 `mvn spotless:apply` 会产生大面积 diff，务必单独一个 chore 提交，
+                并把该提交加入 .git-blame-ignore-revs，否则 git blame 全部指向格式化提交。
+            -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.43.0</version>
+                <configuration>
+                    <java>
+                        <googleJavaFormat>
+                            <version>1.22.0</version>
+                            <style>AOSP</style>
+                        </googleJavaFormat>
+                        <removeUnusedImports/>
+                        <formatAnnotations/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                语义检查：只保留"真出过事"的规则（见 config/checkstyle/checkstyle.xml）。
+                格式类问题由 Spotless 负责，这里不重复报错。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <configLocation>config/checkstyle/checkstyle.xml</configLocation>
+                    <!--
+                        suppressions.xml 通过 ${config_loc} 引用。
+                        这里刻意用相对路径而不是 ${project.basedir}：
+                        项目所在目录含中文时，属性展开会按平台编码转换，
+                        导致路径被破坏（表现为 "D:\¡Á???\..."）。
+                        相对路径由 checkstyle 按当前工作目录解析，
+                        Maven 在 backend/ 下执行，CI 也已声明 working-directory: backend。
+                    -->
+                    <propertyExpansion>config_loc=config/checkstyle</propertyExpansion>
+                    <failOnViolation>true</failOnViolation>
+                    <violationSeverity>error</violationSeverity>
+                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                    <consoleOutput>true</consoleOutput>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>checkstyle</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

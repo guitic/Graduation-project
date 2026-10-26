@@ -34,3 +34,6 @@ Thumbs.db
 # ---- 测试产物 ----
 target/sentiment-eval/
 coverage/
+
+# ---- 本地校验临时文件 ----
+.schema_check_*.tmp

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: 后端 · 格式 + 检查 + 测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Spotless 格式检查
+        run: mvn -B -s ../maven-settings.xml spotless:check
+
+      - name: Checkstyle
+        run: mvn -B -s ../maven-settings.xml checkstyle:check
+
+      - name: 编译 + 测试
+        run: mvn -B -s ../maven-settings.xml test
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-report
+          path: |
+            backend/target/surefire-reports/
+            backend/target/sentiment-eval/
+          retention-days: 7
+
+  frontend:
+    name: 前端 · Lint + 格式 + 构建
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+
+  schema-sync:
+    name: 数据脚本一致性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 校验两份 schema 是否同源
+        run: sh scripts/check-schema-sync.sh
