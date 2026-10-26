@@ -1,0 +1,197 @@
+/* ============================================================
+   设计令牌 —— 统一色彩 / 间距 / 圆角 / 阴影
+   主色 #2B5CE6 仅用于「可点击的动作」，状态色一律独立成套，
+   避免"看起来是主色 = 可以点"的误读。
+   ============================================================ */
+:root {
+  --mc-primary: #2b5ce6;
+  --mc-primary-hover: #1e4bd1;
+  --mc-primary-weak: #eef2fe;
+
+  --mc-bg: #f5f7fb;
+  --mc-card: #ffffff;
+  --mc-border: #e5e6eb;
+  --mc-border-weak: #f0f1f4;
+
+  --mc-text-1: #1f2329;
+  --mc-text-2: #646a73;
+  --mc-text-3: #8f959e;
+  --mc-text-4: #b4b8bf;
+
+  /* 状态色（6 态 + 撤回） */
+  --st-draft-fg: #6b7280;
+  --st-draft-bg: #f2f3f5;
+  --st-pending-fg: #b45309;
+  --st-pending-bg: #fef3e2;
+  --st-approved-fg: #0e7490;
+  --st-approved-bg: #e0f2fe;
+  --st-published-fg: #12805c;
+  --st-published-bg: #e6f7ee;
+  --st-returned-fg: #c2410c;
+  --st-returned-bg: #ffedd5;
+  --st-rejected-fg: #b91c1c;
+  --st-rejected-bg: #fee2e2;
+  --st-withdrawn-fg: #6d28d9;
+  --st-withdrawn-bg: #ede9fe;
+
+  /* 情感色：正向绿 / 中性灰 / 负向红 */
+  --sn-pos: #12805c;
+  --sn-neu: #8f959e;
+  --sn-neg: #d92d20;
+
+  --mc-radius: 10px;
+  --mc-radius-sm: 6px;
+  --mc-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.05);
+  --mc-shadow-hover: 0 2px 6px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08);
+
+  --el-color-primary: #2b5ce6;
+  --el-border-radius-base: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: var(--mc-bg);
+  color: var(--mc-text-1);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--mc-primary);
+  text-decoration: none;
+}
+
+/* 通用卡片 */
+.mc-card {
+  background: var(--mc-card);
+  border: 1px solid var(--mc-border-weak);
+  border-radius: var(--mc-radius);
+  box-shadow: var(--mc-shadow);
+}
+
+.mc-page {
+  padding: 20px 24px 32px;
+}
+
+.mc-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.mc-page-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.mc-page-sub {
+  color: var(--mc-text-3);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.mc-muted {
+  color: var(--mc-text-3);
+}
+
+.mc-mono {
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+}
+
+/* 状态胶囊 */
+.mc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+.mc-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+/* 口径行：每个图表都必须说明"算的是什么" */
+.mc-caliber {
+  font-size: 12px;
+  color: var(--mc-text-3);
+  line-height: 1.6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.mc-caliber b {
+  color: var(--mc-text-2);
+  font-weight: 600;
+}
+
+/* 空态门禁 */
+.mc-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  min-height: 220px;
+  color: var(--mc-text-3);
+  padding: 24px;
+}
+.mc-gate .gate-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--mc-primary-weak);
+  color: var(--mc-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+.mc-gate .gate-title {
+  color: var(--mc-text-2);
+  font-weight: 600;
+  font-size: 14px;
+}
+.mc-gate .gate-desc {
+  font-size: 12.5px;
+  max-width: 300px;
+  line-height: 1.7;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6d9de;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c2c6cc;
+}

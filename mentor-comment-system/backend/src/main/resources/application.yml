@@ -1,0 +1,56 @@
+server:
+  port: 8090
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: mentor-comment-system
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: always
+  # 默认连接 MySQL；首次启动会自动建表（schema.sql），种子数据由 DemoDataInitializer 生成
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/mentor_comment?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: 123456
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema.sql
+      continue-on-error: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+# Sa-Token 鉴权
+sa-token:
+  token-name: satoken
+  timeout: 86400
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-log: false
+
+# 统计最小样本量（隐私门槛）
+# 只有一个 key：同时作用于 饼图 / 趋势（图级+桶级）/ 词云 / 明细下钻。
+# 不设"词云 3、情感 5"这类不对称配置——2~4 条点评的高频词几乎就是原文关键词，
+# 放宽门槛收益为零、风险不为零。答辩现场把 5 改成 6，四张图必须同时变化。
+analysis:
+  min-sample: 5
+
+logging:
+  level:
+    com.graduation.mentor: info
+    org.springframework.jdbc.datasource.init: warn

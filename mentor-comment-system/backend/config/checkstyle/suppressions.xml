@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<!--
+  规则例外登记簿。
+
+  原则（见 deliverables/代码审查/02-审查流程.md §七）：
+  允许例外，但必须留痕。不留痕的例外会让红线在三个月内失效。
+
+  每条例外必须写清三件事：① 为什么规则在这里不适用 ② 谁确认的 ③ 什么条件下应撤销。
+  新增例外请追加，不要覆盖既有条目。
+-->
+<suppressions>
+
+    <!--
+      例外 1 · IllegalCatch（禁止 catch Throwable）
+      位置：service/analysis/WordSegmenter.java:30,44
+      原因：HanLP 初始化失败抛的是 ExceptionInInitializerError / NoClassDefFoundError，
+            二者属于 Error 而非 Exception。若收窄为 catch (Exception)，
+            降级策略将失效，整个系统会跟着分词组件一起不可用——
+            而"核心流程不依赖外部组件"正是本项目的设计要求。
+      确认：2026-10-26 代码审查基线，审查者确认属于刻意设计。
+      撤销条件：若 HanLP 改为独立进程/远程调用，异常边界变为 Exception，则应撤销。
+    -->
+    <suppress checks="IllegalCatch" files="WordSegmenter\.java"/>
+
+    <!--
+      例外 2 · System.out 禁令
+      位置：src/test/**（当前为 SentimentEvalTest）
+      原因：该测试是评估脚本，System.out 就是它的产出通道（生成评估报告）。
+            生产代码（src/main）的 System.out 禁令仍全量生效，未放宽。
+      撤销条件：若测试改为写文件/断言，则应撤销。
+    -->
+    <suppress checks="RegexpSinglelineJava" files="[\\/]src[\\/]test[\\/].*\.java"/>
+
+</suppressions>

@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+  只保留"真出过事"的规则，不引入 Google/Sun 全量风格集。
+
+  理由：本项目此前零 lint，全量风格集会产生上千条违规，团队第一反应是
+  "关掉它"而不是"修它"。格式类问题由 Spotless 自动修复，不需要 Checkstyle 重复报错。
+  这里每条规则都对应一个真实的故障类型：吞异常、字符串用 == 比、printStackTrace 掩盖错误。
+-->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="error"/>
+    <property name="fileExtensions" value="java"/>
+
+    <!-- 例外登记簿：每条例外都必须在 suppressions.xml 里写明原因与撤销条件 -->
+    <module name="SuppressionFilter">
+        <property name="file" value="${config_loc}/suppressions.xml"/>
+    </module>
+
+    <module name="TreeWalker">
+
+        <!-- 未使用的 import：Spotless 已处理，这里兜底防止绕过 -->
+        <module name="UnusedImports"/>
+
+        <!-- 空代码块。catch 里什么都不做是最典型的"错误被吞掉" -->
+        <module name="EmptyBlock">
+            <property name="option" value="text"/>
+            <property name="tokens"
+                      value="LITERAL_CATCH,LITERAL_FINALLY,LITERAL_IF,LITERAL_FOR,LITERAL_WHILE"/>
+        </module>
+
+        <!-- 禁止 catch Throwable：会连 OutOfMemoryError 一起吞 -->
+        <module name="IllegalCatch">
+            <property name="illegalClassNames" value="java.lang.Throwable"/>
+        </module>
+
+        <!-- switch 必须有 default：新增枚举值时不会静默走空分支 -->
+        <module name="MissingSwitchDefault"/>
+
+        <!-- equals 与 hashCode 必须成对重写，否则放进 HashMap 会丢 -->
+        <module name="EqualsHashCode"/>
+
+        <!-- 字符串比较不能用 == -->
+        <module name="StringLiteralEquality"/>
+
+        <!-- 生产代码禁止 System.out / System.err，用 log 或 operLogService -->
+        <module name="RegexpSinglelineJava">
+            <property name="format" value="System\.(out|err)\.print"/>
+            <property name="message"
+                      value="生产代码禁止 System.out/err 输出，请使用 log 或 operLogService.record"/>
+        </module>
+
+        <!-- 禁止 printStackTrace：堆栈打到 stderr 既不可检索也不可聚合 -->
+        <module name="RegexpSinglelineJava">
+            <property name="format" value="\.printStackTrace\(\)"/>
+            <property name="message"
+                      value="禁止 printStackTrace，请抛 BizException 或 log.error(..., e)"/>
+        </module>
+
+    </module>
+</module>

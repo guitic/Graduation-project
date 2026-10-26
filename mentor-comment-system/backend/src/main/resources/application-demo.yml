@@ -1,0 +1,30 @@
+# ============================================================================
+# demo profile —— 零依赖启动，无需安装 MySQL
+# 用途：答辩演示 / 快速验证 / 本地开发
+# 启动：mvn spring-boot:run -Dspring-boot.run.profiles=demo
+#     或 java -jar mentor-comment-backend.jar --spring.profiles.active=demo
+# ============================================================================
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    # DB_CLOSE_DELAY=-1 让内存库在连接池切换时不被销毁
+    url: jdbc:h2:mem:mentor_comment;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;NON_KEYWORDS=VALUE,KEY
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema.sql
+      continue-on-error: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+logging:
+  level:
+    com.graduation.mentor: info
