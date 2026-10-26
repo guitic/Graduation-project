@@ -12,6 +12,7 @@ public class Major {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+
     private String college;
     private String name;
     private String code;

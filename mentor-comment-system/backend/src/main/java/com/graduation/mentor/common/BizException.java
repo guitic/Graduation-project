@@ -2,10 +2,7 @@ package com.graduation.mentor.common;
 
 import lombok.Getter;
 
-/**
- * 业务异常。code 语义：
- * 400 参数错误 / 401 未登录 / 403 无权限 / 404 不存在 / 409 状态冲突
- */
+/** 业务异常。code 语义： 400 参数错误 / 401 未登录 / 403 无权限 / 404 不存在 / 409 状态冲突 */
 @Getter
 public class BizException extends RuntimeException {
 

@@ -1,9 +1,8 @@
 package com.graduation.mentor.dto;
 
-import lombok.Data;
-
 import java.util.List;
 import java.util.Map;
+import lombok.Data;
 
 /** 统计报表 DTO */
 public class StatDtos {
@@ -17,6 +16,7 @@ public class StatDtos {
         private Long studentId;
         private String startDate;
         private String endDate;
+
         /** 趋势图回溯月数，默认 6 */
         private int months = 6;
     }
@@ -32,6 +32,7 @@ public class StatDtos {
         private long rejected;
         private long draft;
         private long lowConfidence;
+
         /** 平均审核时长（小时），无样本时为 null */
         private Double avgAuditHours;
     }
@@ -43,12 +44,16 @@ public class StatDtos {
         private long positive;
         private long neutral;
         private long negative;
+
         /** 占比：样本不足时一律为 null，前端拿不到数，避免"藏起来但接口给了" */
         private Double positiveRate;
+
         private Double neutralRate;
         private Double negativeRate;
+
         /** 是否达到最小样本量 */
         private boolean enough;
+
         private int minSample;
     }
 
@@ -57,24 +62,25 @@ public class StatDtos {
     public static class Trend {
         /** 月份标签，如 2026-05 */
         private List<String> months;
+
         /** 各情感的数量序列（永远可画） */
         private List<Long> positiveCount;
+
         private List<Long> neutralCount;
         private List<Long> negativeCount;
-        /**
-         * 比率序列。稀疏桶为 null（前端断线），
-         * 整图样本 <5 时整条为 null（前端不画比率线）。
-         */
+
+        /** 比率序列。稀疏桶为 null（前端断线）， 整图样本 <5 时整条为 null（前端不画比率线）。 */
         private List<Double> positiveRate;
+
         /** 每个桶的样本量，前端做浅色处理 */
         private List<Long> bucketTotal;
+
         private boolean rateAvailable;
         private int minSample;
-        /**
-         * 当前未完结月份（最后一个桶）。前端据此把该段渲染成虚线/斜纹，
-         * 表达"当月持续更新中"。生产环境每月都会触发，演示种子不放当月数据。
-         */
+
+        /** 当前未完结月份（最后一个桶）。前端据此把该段渲染成虚线/斜纹， 表达"当月持续更新中"。生产环境每月都会触发，演示种子不放当月数据。 */
         private String inProgressMonth;
+
         /** 每个桶是否属于当前未完结月 */
         private List<Boolean> inProgress;
     }
@@ -142,6 +148,7 @@ public class StatDtos {
         private WordCloud wordCloud;
         private String methodVersion;
         private String scopeNote;
+
         /** 统计截至：已发布点评中最大的 published_at。由数据自证窗口，不靠人记 */
         private String asOf;
     }

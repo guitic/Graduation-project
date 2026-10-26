@@ -3,17 +3,31 @@
     <div class="mc-page-head">
       <div>
         <div class="mc-page-title">我的点评</div>
-        <div class="mc-page-sub">填写学生学业点评，保存草稿或提交教务审核；退回修改后可按意见重提</div>
+        <div class="mc-page-sub">
+          填写学生学业点评，保存草稿或提交教务审核；退回修改后可按意见重提
+        </div>
       </div>
       <el-button type="primary" :icon="Plus" @click="openCreate">新建点评</el-button>
     </div>
 
     <!-- 筛选 -->
     <div class="mc-card filter-bar">
-      <el-select v-model="query.status" placeholder="全部状态" clearable class="f-item" @change="onSearch">
+      <el-select
+        v-model="query.status"
+        placeholder="全部状态"
+        clearable
+        class="f-item"
+        @change="onSearch"
+      >
         <el-option v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
       </el-select>
-      <el-select v-model="query.term" placeholder="全部学期" clearable class="f-item" @change="onSearch">
+      <el-select
+        v-model="query.term"
+        placeholder="全部学期"
+        clearable
+        class="f-item"
+        @change="onSearch"
+      >
         <el-option v-for="t in terms" :key="t" :label="t" :value="t" />
       </el-select>
       <el-input
@@ -29,7 +43,7 @@
     </div>
 
     <!-- 表格 -->
-    <div class="mc-card table-card" v-loading="loading">
+    <div v-loading="loading" class="mc-card table-card">
       <el-table :data="rows" stripe style="width: 100%" row-key="id">
         <el-table-column label="学生" min-width="130">
           <template #default="{ row }">
@@ -58,22 +72,10 @@
         <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
             <el-button text type="primary" size="small" @click="openDetail(row)">查看</el-button>
-            <el-button
-              v-if="editable(row)"
-              text
-              type="primary"
-              size="small"
-              @click="openEdit(row)"
-            >
+            <el-button v-if="editable(row)" text type="primary" size="small" @click="openEdit(row)">
               编辑
             </el-button>
-            <el-button
-              v-if="editable(row)"
-              text
-              type="success"
-              size="small"
-              @click="doSubmit(row)"
-            >
+            <el-button v-if="editable(row)" text type="success" size="small" @click="doSubmit(row)">
               提交
             </el-button>
             <el-button
@@ -114,7 +116,12 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <div class="form-row">
           <el-form-item label="学生" prop="studentId" class="grow">
-            <el-select v-model="form.studentId" placeholder="选择指导关系内的学生" filterable class="w-full">
+            <el-select
+              v-model="form.studentId"
+              placeholder="选择指导关系内的学生"
+              filterable
+              class="w-full"
+            >
               <el-option
                 v-for="s in students"
                 :key="s.id"
@@ -124,13 +131,24 @@
             </el-select>
           </el-form-item>
           <el-form-item label="学期" prop="term" class="w-220">
-            <el-select v-model="form.term" placeholder="选择学期" filterable allow-create class="w-full">
+            <el-select
+              v-model="form.term"
+              placeholder="选择学期"
+              filterable
+              allow-create
+              class="w-full"
+            >
               <el-option v-for="t in terms" :key="t" :label="t" :value="t" />
             </el-select>
           </el-form-item>
         </div>
         <el-form-item label="指导主题" prop="topic">
-          <el-input v-model="form.topic" maxlength="50" show-word-limit placeholder="如：本学期学业规划与课程选择" />
+          <el-input
+            v-model="form.topic"
+            maxlength="50"
+            show-word-limit
+            placeholder="如：本学期学业规划与课程选择"
+          />
         </el-form-item>
         <el-form-item label="点评内容" prop="content">
           <el-input

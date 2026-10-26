@@ -5,6 +5,7 @@ import com.graduation.mentor.common.R;
 import com.graduation.mentor.dto.CommentDtos;
 import com.graduation.mentor.service.CommentService;
 import jakarta.validation.Valid;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,10 +16,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
 /**
  * 点评接口。
+ *
  * <p>路由按角色分组，但**真正的权限判定在 Service 层**，不依赖路由分组。
  */
 @RestController

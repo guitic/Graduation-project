@@ -10,17 +10,42 @@
 
 export const STATUS_META = {
   DRAFT: { key: 'DRAFT', label: '草稿', fg: 'var(--st-draft-fg)', bg: 'var(--st-draft-bg)' },
-  PENDING: { key: 'PENDING', label: '待审核', fg: 'var(--st-pending-fg)', bg: 'var(--st-pending-bg)' },
+  PENDING: {
+    key: 'PENDING',
+    label: '待审核',
+    fg: 'var(--st-pending-fg)',
+    bg: 'var(--st-pending-bg)'
+  },
   APPROVED_UNPUBLISHED: {
     key: 'APPROVED_UNPUBLISHED',
     label: '待发布',
     fg: 'var(--st-approved-fg)',
     bg: 'var(--st-approved-bg)'
   },
-  PUBLISHED: { key: 'PUBLISHED', label: '已发布', fg: 'var(--st-published-fg)', bg: 'var(--st-published-bg)' },
-  RETURNED: { key: 'RETURNED', label: '退回修改', fg: 'var(--st-returned-fg)', bg: 'var(--st-returned-bg)' },
-  REJECTED: { key: 'REJECTED', label: '已驳回', fg: 'var(--st-rejected-fg)', bg: 'var(--st-rejected-bg)' },
-  WITHDRAWN: { key: 'WITHDRAWN', label: '曾发布·已撤回', fg: 'var(--st-withdrawn-fg)', bg: 'var(--st-withdrawn-bg)' }
+  PUBLISHED: {
+    key: 'PUBLISHED',
+    label: '已发布',
+    fg: 'var(--st-published-fg)',
+    bg: 'var(--st-published-bg)'
+  },
+  RETURNED: {
+    key: 'RETURNED',
+    label: '退回修改',
+    fg: 'var(--st-returned-fg)',
+    bg: 'var(--st-returned-bg)'
+  },
+  REJECTED: {
+    key: 'REJECTED',
+    label: '已驳回',
+    fg: 'var(--st-rejected-fg)',
+    bg: 'var(--st-rejected-bg)'
+  },
+  WITHDRAWN: {
+    key: 'WITHDRAWN',
+    label: '曾发布·已撤回',
+    fg: 'var(--st-withdrawn-fg)',
+    bg: 'var(--st-withdrawn-bg)'
+  }
 }
 
 /**
@@ -50,7 +75,9 @@ export const SENTIMENT_META = {
 }
 
 export function sentimentMeta(label) {
-  return SENTIMENT_META[label] || { key: 'UNKNOWN', label: '未分析', color: '#b4b8bf', raw: '#b4b8bf' }
+  return (
+    SENTIMENT_META[label] || { key: 'UNKNOWN', label: '未分析', color: '#b4b8bf', raw: '#b4b8bf' }
+  )
 }
 
 /** 审核动作 → 中文（7 值事件流），与后端 actionLabel 保持一致 */

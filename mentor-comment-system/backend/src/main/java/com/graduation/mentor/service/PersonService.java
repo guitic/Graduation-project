@@ -13,21 +13,21 @@ import com.graduation.mentor.mapper.MajorMapper;
 import com.graduation.mentor.mapper.StudentMapper;
 import com.graduation.mentor.mapper.TeacherMapper;
 import com.graduation.mentor.mapper.TeacherStudentMapper;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 人员与指导关系服务。
- * <p>导师选择学生的下拉框只能看到自己指导的学生 —— 这是数据权限的第一道闸门，
- * 但**不能只靠下拉框**：提交接口会用 {@link CommentService#assertGuiding} 再校验一次。
+ *
+ * <p>导师选择学生的下拉框只能看到自己指导的学生 —— 这是数据权限的第一道闸门， 但**不能只靠下拉框**：提交接口会用 {@link
+ * CommentService#assertGuiding} 再校验一次。
  */
 @Service
 @RequiredArgsConstructor
@@ -43,8 +43,11 @@ public class PersonService {
     private final OperLogService operLogService;
 
     public List<Map<String, Object>> teacherOptions() {
-        List<Teacher> list = teacherMapper.selectList(new LambdaQueryWrapper<Teacher>()
-                .eq(Teacher::getStatus, 1).orderByAsc(Teacher::getId));
+        List<Teacher> list =
+                teacherMapper.selectList(
+                        new LambdaQueryWrapper<Teacher>()
+                                .eq(Teacher::getStatus, 1)
+                                .orderByAsc(Teacher::getId));
         List<Map<String, Object>> out = new ArrayList<>();
         for (Teacher t : list) {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -60,9 +63,11 @@ public class PersonService {
     /** 当前导师指导的学生 */
     public List<Map<String, Object>> myStudents() {
         Long teacherId = authContext.currentTeacherId();
-        List<TeacherStudent> rels = teacherStudentMapper.selectList(new LambdaQueryWrapper<TeacherStudent>()
-                .eq(TeacherStudent::getTeacherId, teacherId)
-                .eq(TeacherStudent::getStatus, 1));
+        List<TeacherStudent> rels =
+                teacherStudentMapper.selectList(
+                        new LambdaQueryWrapper<TeacherStudent>()
+                                .eq(TeacherStudent::getTeacherId, teacherId)
+                                .eq(TeacherStudent::getStatus, 1));
         List<Map<String, Object>> out = new ArrayList<>();
         for (TeacherStudent r : rels) {
             Student s = studentMapper.selectById(r.getStudentId());
@@ -79,9 +84,11 @@ public class PersonService {
         if (!authContext.isAdmin()) {
             throw BizException.forbidden("仅教务管理员可按导师查询学生名单");
         }
-        List<TeacherStudent> rels = teacherStudentMapper.selectList(new LambdaQueryWrapper<TeacherStudent>()
-                .eq(TeacherStudent::getTeacherId, teacherId)
-                .eq(TeacherStudent::getStatus, 1));
+        List<TeacherStudent> rels =
+                teacherStudentMapper.selectList(
+                        new LambdaQueryWrapper<TeacherStudent>()
+                                .eq(TeacherStudent::getTeacherId, teacherId)
+                                .eq(TeacherStudent::getStatus, 1));
         List<Map<String, Object>> out = new ArrayList<>();
         for (TeacherStudent r : rels) {
             Student s = studentMapper.selectById(r.getStudentId());
@@ -106,8 +113,11 @@ public class PersonService {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Student s : studentMapper.selectList(w.orderByAsc(Student::getStudentNo))) {
             Map<String, Object> m = studentMap(s);
-            List<TeacherStudent> rels = teacherStudentMapper.selectList(new LambdaQueryWrapper<TeacherStudent>()
-                    .eq(TeacherStudent::getStudentId, s.getId()).eq(TeacherStudent::getStatus, 1));
+            List<TeacherStudent> rels =
+                    teacherStudentMapper.selectList(
+                            new LambdaQueryWrapper<TeacherStudent>()
+                                    .eq(TeacherStudent::getStudentId, s.getId())
+                                    .eq(TeacherStudent::getStatus, 1));
             List<String> tNames = new ArrayList<>();
             for (TeacherStudent r : rels) {
                 Teacher t = teacherMapper.selectById(r.getTeacherId());
@@ -122,7 +132,8 @@ public class PersonService {
     }
 
     public List<Map<String, Object>> clazzOptions() {
-        List<Clazz> list = clazzMapper.selectList(new LambdaQueryWrapper<Clazz>().orderByAsc(Clazz::getId));
+        List<Clazz> list =
+                clazzMapper.selectList(new LambdaQueryWrapper<Clazz>().orderByAsc(Clazz::getId));
         List<Map<String, Object>> out = new ArrayList<>();
         for (Clazz c : list) {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -143,12 +154,16 @@ public class PersonService {
 
     /** 学期下拉（从点评表里取已有学期，避免硬编码） */
     public List<String> termOptions() {
-        return commentMapper.selectList(new LambdaQueryWrapper<com.graduation.mentor.entity.Comment>()
-                        .select(com.graduation.mentor.entity.Comment::getTerm))
+        return commentMapper
+                .selectList(
+                        new LambdaQueryWrapper<com.graduation.mentor.entity.Comment>()
+                                .select(com.graduation.mentor.entity.Comment::getTerm))
                 .stream()
                 .map(com.graduation.mentor.entity.Comment::getTerm)
                 .filter(t -> t != null && !t.isBlank())
-                .distinct().sorted((a, b) -> b.compareTo(a)).toList();
+                .distinct()
+                .sorted((a, b) -> b.compareTo(a))
+                .toList();
     }
 
     @Transactional
@@ -157,9 +172,11 @@ public class PersonService {
             throw BizException.forbidden("仅教务管理员可维护指导关系");
         }
         for (Long sid : studentIds) {
-            Long exists = teacherStudentMapper.selectCount(new LambdaQueryWrapper<TeacherStudent>()
-                    .eq(TeacherStudent::getTeacherId, teacherId)
-                    .eq(TeacherStudent::getStudentId, sid));
+            Long exists =
+                    teacherStudentMapper.selectCount(
+                            new LambdaQueryWrapper<TeacherStudent>()
+                                    .eq(TeacherStudent::getTeacherId, teacherId)
+                                    .eq(TeacherStudent::getStudentId, sid));
             if (exists != null && exists > 0) {
                 continue;
             }
@@ -171,7 +188,8 @@ public class PersonService {
             rel.setCreatedAt(LocalDateTime.now());
             teacherStudentMapper.insert(rel);
         }
-        operLogService.record("BIND_TEACHER_STUDENT", "TEACHER", teacherId, "绑定学生数：" + studentIds.size());
+        operLogService.record(
+                "BIND_TEACHER_STUDENT", "TEACHER", teacherId, "绑定学生数：" + studentIds.size());
     }
 
     @Transactional

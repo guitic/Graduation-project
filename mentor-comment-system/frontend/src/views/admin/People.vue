@@ -41,12 +41,18 @@
             {{ selectedTeacher?.name || '—' }} 的指导学生
             <span class="panel-count">{{ students.length }} 人</span>
           </span>
-          <el-button type="primary" size="small" :icon="Plus" :disabled="!selectedId" @click="openBind">
+          <el-button
+            type="primary"
+            size="small"
+            :icon="Plus"
+            :disabled="!selectedId"
+            @click="openBind"
+          >
             绑定学生
           </el-button>
         </div>
 
-        <el-table :data="students" stripe v-loading="loading" row-key="id" class="student-table">
+        <el-table v-loading="loading" :data="students" stripe row-key="id" class="student-table">
           <el-table-column prop="studentNo" label="学号" width="130">
             <template #default="{ row }">
               <span class="mc-mono">{{ row.studentNo }}</span>
@@ -105,7 +111,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowRight, Pointer } from '@element-plus/icons-vue'
-import { teachers as teachersApi, studentsOfTeacher, students as studentsApi, bind, unbind } from '../../api/person'
+import {
+  teachers as teachersApi,
+  studentsOfTeacher,
+  students as studentsApi,
+  bind,
+  unbind
+} from '../../api/person'
 
 const teachers = ref([])
 const selectedId = ref(null)

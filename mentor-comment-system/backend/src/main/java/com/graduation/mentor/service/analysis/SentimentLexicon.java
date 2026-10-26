@@ -1,9 +1,5 @@
 package com.graduation.mentor.service.analysis;
 
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.stereotype.Component;
-
 import jakarta.annotation.PostConstruct;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -13,11 +9,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Component;
 
 /**
  * 情感词典加载器。
- * <p>四类词表：正向、负向、程度副词（带权重）、否定词。词表以纯文本放在
- * classpath:lexicon/ 下，可热替换，方便论文里说明"领域词典可扩展"。
+ *
+ * <p>四类词表：正向、负向、程度副词（带权重）、否定词。词表以纯文本放在 classpath:lexicon/ 下，可热替换，方便论文里说明"领域词典可扩展"。
  */
 @Slf4j
 @Component
@@ -36,13 +35,21 @@ public class SentimentLexicon {
         readLines("lexicon/negation.txt", negation, false);
         readLines("lexicon/stopwords.txt", stopwords, false);
         readDegree("lexicon/degree.txt");
-        log.info("情感词典加载完成：正向 {} 词，负向 {} 词，否定 {} 词，程度 {} 词，停用 {} 词",
-                positive.size(), negative.size(), negation.size(), degree.size(), stopwords.size());
+        log.info(
+                "情感词典加载完成：正向 {} 词，负向 {} 词，否定 {} 词，程度 {} 词，停用 {} 词",
+                positive.size(),
+                negative.size(),
+                negation.size(),
+                degree.size(),
+                stopwords.size());
     }
 
     private void readLines(String path, Set<String> target, boolean ignore) {
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                new ClassPathResource(path).getInputStream(), StandardCharsets.UTF_8))) {
+        try (BufferedReader br =
+                new BufferedReader(
+                        new InputStreamReader(
+                                new ClassPathResource(path).getInputStream(),
+                                StandardCharsets.UTF_8))) {
             String line;
             while ((line = br.readLine()) != null) {
                 line = line.trim();
@@ -57,8 +64,11 @@ public class SentimentLexicon {
     }
 
     private void readDegree(String path) {
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                new ClassPathResource(path).getInputStream(), StandardCharsets.UTF_8))) {
+        try (BufferedReader br =
+                new BufferedReader(
+                        new InputStreamReader(
+                                new ClassPathResource(path).getInputStream(),
+                                StandardCharsets.UTF_8))) {
             String line;
             while ((line = br.readLine()) != null) {
                 line = line.trim();

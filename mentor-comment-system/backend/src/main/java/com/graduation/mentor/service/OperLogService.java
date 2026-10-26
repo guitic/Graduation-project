@@ -3,16 +3,15 @@ package com.graduation.mentor.service;
 import com.graduation.mentor.common.AuthContext;
 import com.graduation.mentor.entity.OperLog;
 import com.graduation.mentor.mapper.OperLogMapper;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-
 /**
  * 操作日志。
- * <p>设计约束：日志写入失败绝不阻塞主流程（catch 掉并告警），
- * 因为审计是旁路能力，不能反过来影响点评提交。
+ *
+ * <p>设计约束：日志写入失败绝不阻塞主流程（catch 掉并告警）， 因为审计是旁路能力，不能反过来影响点评提交。
  */
 @Slf4j
 @Service
@@ -22,7 +21,8 @@ public class OperLogService {
     private final OperLogMapper operLogMapper;
     private final AuthContext authContext;
 
-    public void record(String action, String targetType, Long targetId, String detail, boolean success) {
+    public void record(
+            String action, String targetType, Long targetId, String detail, boolean success) {
         try {
             OperLog l = new OperLog();
             try {

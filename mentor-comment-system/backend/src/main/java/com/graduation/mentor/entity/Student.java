@@ -12,6 +12,7 @@ public class Student {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+
     private Long userId;
     private String studentNo;
     private String name;

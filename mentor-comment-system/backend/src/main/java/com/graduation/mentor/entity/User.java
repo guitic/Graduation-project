@@ -3,9 +3,8 @@ package com.graduation.mentor.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
-
 import java.time.LocalDateTime;
+import lombok.Data;
 
 /** 账号表（对应设计文档 user，避开 SQL 保留字改名为 sys_user） */
 @Data
@@ -14,12 +13,17 @@ public class User {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+
     private String username;
+
     /** BCrypt 哈希，绝不存明文 */
     private String password;
+
     private String realName;
+
     /** ADMIN / TEACHER / STUDENT */
     private String role;
+
     private Integer status;
     private String phone;
     private String email;

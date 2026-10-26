@@ -12,6 +12,7 @@ public class Clazz {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+
     private Long majorId;
     private String name;
     private Integer grade;

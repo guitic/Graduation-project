@@ -15,9 +15,11 @@
         <!-- 待发布 -->
         <el-tab-pane name="unpublished">
           <template #label>
-            <span class="tab-label">待发布 <span class="tab-count">{{ unpubTotal }}</span></span>
+            <span class="tab-label"
+              >待发布 <span class="tab-count">{{ unpubTotal }}</span></span
+            >
           </template>
-          <el-table :data="unpubRows" stripe row-key="id" v-loading="unpubLoading">
+          <el-table v-loading="unpubLoading" :data="unpubRows" stripe row-key="id">
             <el-table-column label="学生" min-width="120">
               <template #default="{ row }">
                 <div class="stu">
@@ -40,7 +42,9 @@
             </el-table-column>
             <el-table-column label="操作" width="120" fixed="right">
               <template #default="{ row }">
-                <el-button text type="primary" size="small" @click="openPublish(row)">发布</el-button>
+                <el-button text type="primary" size="small" @click="openPublish(row)"
+                  >发布</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -54,15 +58,21 @@
               @current-change="loadUnpub"
             />
           </div>
-          <el-empty v-if="!unpubLoading && !unpubRows.length" description="暂无待发布点评" :image-size="72" />
+          <el-empty
+            v-if="!unpubLoading && !unpubRows.length"
+            description="暂无待发布点评"
+            :image-size="72"
+          />
         </el-tab-pane>
 
         <!-- 已发布 -->
         <el-tab-pane name="published">
           <template #label>
-            <span class="tab-label">已发布 <span class="tab-count">{{ pubTotal }}</span></span>
+            <span class="tab-label"
+              >已发布 <span class="tab-count">{{ pubTotal }}</span></span
+            >
           </template>
-          <el-table :data="pubRows" stripe row-key="id" v-loading="pubLoading">
+          <el-table v-loading="pubLoading" :data="pubRows" stripe row-key="id">
             <el-table-column label="学生" min-width="120">
               <template #default="{ row }">
                 <div class="stu">
@@ -81,7 +91,9 @@
             </el-table-column>
             <el-table-column label="操作" width="120" fixed="right">
               <template #default="{ row }">
-                <el-button text type="warning" size="small" @click="openUnpublish(row)">撤回</el-button>
+                <el-button text type="warning" size="small" @click="openUnpublish(row)"
+                  >撤回</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -95,7 +107,11 @@
               @current-change="loadPub"
             />
           </div>
-          <el-empty v-if="!pubLoading && !pubRows.length" description="暂无已发布点评" :image-size="72" />
+          <el-empty
+            v-if="!pubLoading && !pubRows.length"
+            description="暂无已发布点评"
+            :image-size="72"
+          />
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -103,7 +119,9 @@
     <!-- 发布 / 撤回 弹窗 -->
     <el-dialog v-model="dlgVisible" :title="dlg.title" width="520px" :close-on-click-modal="false">
       <div class="dlg-target">
-        <div class="dt-row"><span class="dt-k">学生</span>{{ target?.studentName }} · {{ target?.clazzName }}</div>
+        <div class="dt-row">
+          <span class="dt-k">学生</span>{{ target?.studentName }} · {{ target?.clazzName }}
+        </div>
         <div class="dt-row"><span class="dt-k">主题</span>{{ target?.topic }}</div>
       </div>
       <div class="dlg-tip" :class="dlg.tone">{{ dlg.tip }}</div>
@@ -117,12 +135,16 @@
       />
       <div class="dlg-count" :class="{ ok: reason.trim().length >= dlg.minLen }">
         已输入 <b>{{ reason.trim().length }}</b> 字 ·
-        <template v-if="dlg.minLen > 0">至少 <b>{{ dlg.minLen }}</b> 字</template>
+        <template v-if="dlg.minLen > 0"
+          >至少 <b>{{ dlg.minLen }}</b> 字</template
+        >
         <template v-else>首次发布无需理由</template>
       </div>
       <template #footer>
         <el-button @click="dlgVisible = false">取消</el-button>
-        <el-button :type="dlg.btnType" :loading="acting" @click="confirm">{{ dlg.confirmText }}</el-button>
+        <el-button :type="dlg.btnType" :loading="acting" @click="confirm">{{
+          dlg.confirmText
+        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -169,7 +191,9 @@ const dlg = computed(() => {
       tip: rePublish
         ? '该点评曾被撤回，再次发布属于「再发布」，需填写理由（≥5 字）说明为何放回。'
         : '首次发布无需理由。发布后学生立即可见，并纳入统计与分析。',
-      placeholder: rePublish ? '请填写再发布理由（≥5 字），如：内容已复核无误，恢复发布。' : '（可选）填写发布备注'
+      placeholder: rePublish
+        ? '请填写再发布理由（≥5 字），如：内容已复核无误，恢复发布。'
+        : '（可选）填写发布备注'
     }
   }
   return {

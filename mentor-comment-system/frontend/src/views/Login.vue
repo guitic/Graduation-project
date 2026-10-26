@@ -12,9 +12,15 @@
           为学业指导提供可追溯、可解释的数据依据。
         </p>
         <ul class="feature-list">
-          <li><el-icon><CircleCheck /></el-icon> 双维度状态机：审核通过 ≠ 已发布</li>
-          <li><el-icon><CircleCheck /></el-icon> 词典法情感分析：可解释、可复现</li>
-          <li><el-icon><CircleCheck /></el-icon> 隐私门槛：样本不足不展示聚合结果</li>
+          <li>
+            <el-icon><CircleCheck /></el-icon> 双维度状态机：审核通过 ≠ 已发布
+          </li>
+          <li>
+            <el-icon><CircleCheck /></el-icon> 词典法情感分析：可解释、可复现
+          </li>
+          <li>
+            <el-icon><CircleCheck /></el-icon> 隐私门槛：样本不足不展示聚合结果
+          </li>
         </ul>
         <div class="brand-foot">2027 届本科毕业设计 · 软件工程</div>
       </div>
@@ -49,7 +55,9 @@
         <div class="demo-block">
           <div class="demo-head">
             <span>演示账号</span>
-            <span class="demo-pwd">统一密码：<b>{{ demoPassword || '123456' }}</b></span>
+            <span class="demo-pwd"
+              >统一密码：<b>{{ demoPassword || '123456' }}</b></span
+            >
           </div>
           <div class="chips">
             <button

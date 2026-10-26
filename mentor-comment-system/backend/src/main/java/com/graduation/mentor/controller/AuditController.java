@@ -5,6 +5,8 @@ import com.graduation.mentor.common.R;
 import com.graduation.mentor.dto.CommentDtos;
 import com.graduation.mentor.service.AuditService;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,13 +15,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.Map;
-
 /**
  * 审核与发布接口。
- * <p>注意：**不提供批量发布接口**。批量更新极易写成 {@code WHERE id IN (...)} 的裸 SQL，
- * 绕过逐条状态校验，是状态机被破坏的主要入口。
+ *
+ * <p>注意：**不提供批量发布接口**。批量更新极易写成 {@code WHERE id IN (...)} 的裸 SQL， 绕过逐条状态校验，是状态机被破坏的主要入口。
  */
 @RestController
 @RequestMapping("/api/audit")
@@ -70,11 +69,12 @@ public class AuditController {
 
     /**
      * 发布（单条）。
-     * <p>首次发布无需理由；曾撤回过的点评属于"再发布"，必须填理由（≥5 字），
-     * 因为"为什么压下来"有据可查、"为什么放回去"也必须可查。
+     *
+     * <p>首次发布无需理由；曾撤回过的点评属于"再发布"，必须填理由（≥5 字）， 因为"为什么压下来"有据可查、"为什么放回去"也必须可查。
      */
     @PostMapping("/{id}/publish")
-    public R<Void> publish(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+    public R<Void> publish(
+            @PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
         String reason = body == null ? null : String.valueOf(body.getOrDefault("reason", ""));
         auditService.publish(id, reason);
         return R.ok();

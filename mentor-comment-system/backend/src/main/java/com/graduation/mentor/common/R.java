@@ -2,9 +2,7 @@ package com.graduation.mentor.common;
 
 import lombok.Data;
 
-/**
- * 统一响应体。code=0 表示成功，非 0 表示业务/系统错误。
- */
+/** 统一响应体。code=0 表示成功，非 0 表示业务/系统错误。 */
 @Data
 public class R<T> {
 

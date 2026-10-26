@@ -3,9 +3,8 @@ package com.graduation.mentor.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
-
 import java.time.LocalDateTime;
+import lombok.Data;
 
 /** 关键操作留痕：提交、审核、退回、驳回、发布 */
 @Data
@@ -14,6 +13,7 @@ public class OperLog {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+
     private Long userId;
     private String username;
     private String role;

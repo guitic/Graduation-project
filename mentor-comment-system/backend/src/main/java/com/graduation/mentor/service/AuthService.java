@@ -12,12 +12,11 @@ import com.graduation.mentor.mapper.ClazzMapper;
 import com.graduation.mentor.mapper.StudentMapper;
 import com.graduation.mentor.mapper.TeacherMapper;
 import com.graduation.mentor.mapper.UserMapper;
+import java.time.LocalDateTime;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -30,9 +29,11 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
 
     public AuthDtos.LoginResp login(AuthDtos.LoginReq req) {
-        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getUsername, req.getUsername())
-                .last("limit 1"));
+        User user =
+                userMapper.selectOne(
+                        new LambdaQueryWrapper<User>()
+                                .eq(User::getUsername, req.getUsername())
+                                .last("limit 1"));
         // 统一提示，不区分"用户不存在"和"密码错误"，避免账号枚举
         if (user == null || !passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             throw new BizException(401, "用户名或密码错误");
@@ -86,16 +87,22 @@ public class AuthService {
     private void fillBiz(AuthDtos.LoginResp resp, User user) {
         switch (user.getRole()) {
             case "TEACHER" -> {
-                Teacher t = teacherMapper.selectOne(new LambdaQueryWrapper<Teacher>()
-                        .eq(Teacher::getUserId, user.getId()).last("limit 1"));
+                Teacher t =
+                        teacherMapper.selectOne(
+                                new LambdaQueryWrapper<Teacher>()
+                                        .eq(Teacher::getUserId, user.getId())
+                                        .last("limit 1"));
                 if (t != null) {
                     resp.setBizId(t.getId());
                     resp.setBizNo(t.getTeacherNo());
                 }
             }
             case "STUDENT" -> {
-                Student s = studentMapper.selectOne(new LambdaQueryWrapper<Student>()
-                        .eq(Student::getUserId, user.getId()).last("limit 1"));
+                Student s =
+                        studentMapper.selectOne(
+                                new LambdaQueryWrapper<Student>()
+                                        .eq(Student::getUserId, user.getId())
+                                        .last("limit 1"));
                 if (s != null) {
                     resp.setBizId(s.getId());
                     resp.setBizNo(s.getStudentNo());
@@ -120,11 +127,14 @@ public class AuthService {
 
     /** 演示账号列表（登录页 chip 用），不含任何真实密码以外的敏感信息 */
     public Map<String, Object> demoAccounts() {
-        return Map.of("password", "123456", "accounts", java.util.List.of(
-                Map.of("role", "导师", "username", "teacher01", "label", "张明远 · 学业导师"),
-                Map.of("role", "导师", "username", "teacher02", "label", "李静 · 学业导师"),
-                Map.of("role", "学生", "username", "student01", "label", "王小明 · 计科2201"),
-                Map.of("role", "教务", "username", "admin", "label", "教务处 · 王主任")
-        ));
+        return Map.of(
+                "password",
+                "123456",
+                "accounts",
+                java.util.List.of(
+                        Map.of("role", "导师", "username", "teacher01", "label", "张明远 · 学业导师"),
+                        Map.of("role", "导师", "username", "teacher02", "label", "李静 · 学业导师"),
+                        Map.of("role", "学生", "username", "student01", "label", "王小明 · 计科2201"),
+                        Map.of("role", "教务", "username", "admin", "label", "教务处 · 王主任")));
     }
 }

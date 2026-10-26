@@ -1,13 +1,10 @@
 package com.graduation.mentor.common;
 
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.util.List;
-
-/**
- * 分页结果
- */
+/** 分页结果 */
 @Data
 @AllArgsConstructor
 public class PageResult<T> {

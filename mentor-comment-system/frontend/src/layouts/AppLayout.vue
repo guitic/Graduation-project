@@ -45,7 +45,14 @@
           <span class="crumb-title">{{ currentTitle }}</span>
         </div>
         <div class="topbar-right">
-          <el-tag v-if="auth.isAdmin" type="info" effect="plain" round size="small" class="role-tag">
+          <el-tag
+            v-if="auth.isAdmin"
+            type="info"
+            effect="plain"
+            round
+            size="small"
+            class="role-tag"
+          >
             {{ auth.roleLabel }}
           </el-tag>
           <el-tag v-else type="success" effect="plain" round size="small" class="role-tag">

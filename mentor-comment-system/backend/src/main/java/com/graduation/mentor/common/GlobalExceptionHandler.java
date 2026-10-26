@@ -9,9 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * 全局异常处理：保证前端拿到的永远是统一 JSON，而不是 HTML 错误页或堆栈。
- */
+/** 全局异常处理：保证前端拿到的永远是统一 JSON，而不是 HTML 错误页或堆栈。 */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {

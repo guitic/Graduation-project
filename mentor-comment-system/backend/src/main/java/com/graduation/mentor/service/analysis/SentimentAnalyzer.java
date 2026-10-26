@@ -1,16 +1,16 @@
 package com.graduation.mentor.service.analysis;
 
 import com.hankcs.hanlp.seg.common.Term;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 /**
  * 情感倾向分析器 —— 情感词典法（可解释基线方案）。
  *
  * <p>算法（论文 §情感分析设计可直接引用）：
+ *
  * <pre>
  * 1. 脱敏：屏蔽姓名 / 学号 / 手机号 / 邮箱，避免身份信息进入分析链路
  * 2. 分词：HanLP 精确模式
@@ -22,8 +22,7 @@ import java.util.List;
  * 6. 灰区标记：|score| &lt; 2.0 判为低置信度，供人工复核
  * </pre>
  *
- * <p>为什么用阈值 1.5 而不是按词数归一：学业点评多为 30~80 字，绝对得分更稳定；
- * 若做归一化，一句"很好"（1.0/1 词）会被放大成强正向，反而失真。
+ * <p>为什么用阈值 1.5 而不是按词数归一：学业点评多为 30~80 字，绝对得分更稳定； 若做归一化，一句"很好"（1.0/1 词）会被放大成强正向，反而失真。
  */
 @Component
 @RequiredArgsConstructor
@@ -31,12 +30,16 @@ public class SentimentAnalyzer {
 
     /** 正向阈值 */
     private static final double POS_THRESHOLD = 1.5;
+
     /** 负向阈值 */
     private static final double NEG_THRESHOLD = -1.5;
+
     /** 灰区上界：|score| 小于该值视为低置信度 */
     private static final double GRAY_ZONE = 2.0;
+
     /** 否定词修正系数（"不好"弱于"很差"） */
     private static final double NEGATION_DAMPING = -0.8;
+
     /** 向前回看窗口 */
     private static final int LOOK_BACK = 2;
 

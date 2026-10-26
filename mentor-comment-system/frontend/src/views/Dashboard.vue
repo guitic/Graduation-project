@@ -1,5 +1,5 @@
 <template>
-  <div class="mc-page" v-loading="loading">
+  <div v-loading="loading" class="mc-page">
     <!-- 页头 -->
     <div class="mc-page-head">
       <div>
@@ -76,9 +76,7 @@
       <div class="mc-card chart-card">
         <div class="chart-head">
           <div class="chart-title">情感倾向分布</div>
-          <div class="mc-caliber">
-            口径：仅已发布点评 · 样本 &lt; {{ minSample }} 条不展示占比
-          </div>
+          <div class="mc-caliber">口径：仅已发布点评 · 样本 &lt; {{ minSample }} 条不展示占比</div>
         </div>
         <div class="chart-body">
           <GateEmpty
@@ -92,9 +90,15 @@
         </div>
         <div v-if="sentimentOk" class="chart-foot">
           <div class="legend-row">
-            <span class="lg"><i style="background: #12805c" />正向 {{ dash.sentiment.positive }}</span>
-            <span class="lg"><i style="background: #8f959e" />中性 {{ dash.sentiment.neutral }}</span>
-            <span class="lg"><i style="background: #d92d20" />负向 {{ dash.sentiment.negative }}</span>
+            <span class="lg"
+              ><i style="background: #12805c" />正向 {{ dash.sentiment.positive }}</span
+            >
+            <span class="lg"
+              ><i style="background: #8f959e" />中性 {{ dash.sentiment.neutral }}</span
+            >
+            <span class="lg"
+              ><i style="background: #d92d20" />负向 {{ dash.sentiment.negative }}</span
+            >
           </div>
           <div class="rate-row">
             正向率
@@ -160,12 +164,7 @@
     </div>
 
     <!-- 下钻抽屉 -->
-    <el-drawer
-      v-model="drawerVisible"
-      :title="drill.title"
-      size="560px"
-      destroy-on-close
-    >
+    <el-drawer v-model="drawerVisible" :title="drill.title" size="560px" destroy-on-close>
       <div v-loading="drawerLoading" class="drawer-body">
         <div class="drawer-summary">
           <span>
@@ -244,10 +243,22 @@ const kpis = computed(() => {
     { key: 'total', label: '点评总数', value: k.total, foot: '含草稿/待审/退回/驳回', tone: '' },
     { key: 'published', label: '已发布', value: k.published, foot: '纳入统计与分析', tone: 'ok' },
     { key: 'pending', label: '待审核', value: k.pending, foot: '等待教务处理', tone: 'warn' },
-    { key: 'unpublished', label: '待发布', value: k.unpublished, foot: '已通过·未推送', tone: 'info' },
+    {
+      key: 'unpublished',
+      label: '待发布',
+      value: k.unpublished,
+      foot: '已通过·未推送',
+      tone: 'info'
+    },
     { key: 'returned', label: '退回修改', value: k.returned, foot: '待导师修改重提', tone: 'warn' },
     { key: 'rejected', label: '已驳回', value: k.rejected, foot: '终态·不发布', tone: 'danger' },
-    { key: 'lowConfidence', label: '低置信', value: k.lowConfidence, foot: '建议人工复核', tone: 'info' }
+    {
+      key: 'lowConfidence',
+      label: '低置信',
+      value: k.lowConfidence,
+      foot: '建议人工复核',
+      tone: 'info'
+    }
   ]
 })
 
@@ -680,7 +691,12 @@ async function openTrendDrill(month) {
 async function openWordDrill(word) {
   drawerVisible.value = true
   drawerLoading.value = true
-  Object.assign(drill, { title: `含「${word}」的点评`, sampleCount: 0, allowed: false, comments: [] })
+  Object.assign(drill, {
+    title: `含「${word}」的点评`,
+    sampleCount: 0,
+    allowed: false,
+    comments: []
+  })
   try {
     const r = await wordDetail(word, scopeParams())
     Object.assign(drill, {

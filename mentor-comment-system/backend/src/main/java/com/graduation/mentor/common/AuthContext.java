@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 当前登录上下文。
- * <p>把 Sa-Token 的登录态翻译成业务身份（用户 / 角色 / 导师ID），
- * 避免每个 Service 各写一遍。
+ *
+ * <p>把 Sa-Token 的登录态翻译成业务身份（用户 / 角色 / 导师ID）， 避免每个 Service 各写一遍。
  */
 @Component
 public class AuthContext {
@@ -56,10 +56,12 @@ public class AuthContext {
         if (!isTeacher()) {
             throw BizException.forbidden("仅导师可执行该操作");
         }
-        Teacher t = teacherMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Teacher>()
-                        .eq(Teacher::getUserId, userId())
-                        .last("limit 1"));
+        Teacher t =
+                teacherMapper.selectOne(
+                        new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<
+                                        Teacher>()
+                                .eq(Teacher::getUserId, userId())
+                                .last("limit 1"));
         if (t == null) {
             throw BizException.forbidden("当前账号未绑定导师档案");
         }

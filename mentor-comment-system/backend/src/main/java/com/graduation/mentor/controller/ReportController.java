@@ -4,6 +4,7 @@ import com.graduation.mentor.common.R;
 import com.graduation.mentor.dto.StatDtos;
 import com.graduation.mentor.service.AnalysisService;
 import com.graduation.mentor.service.ReportService;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,11 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
-/**
- * 统计分析与报表接口（仅教务）。
- */
+/** 统计分析与报表接口（仅教务）。 */
 @RestController
 @RequestMapping("/api/report")
 @RequiredArgsConstructor
@@ -65,7 +62,8 @@ public class ReportController {
 
     /** 趋势点下钻：门禁按**桶级**样本量判定，不是整体样本量 */
     @GetMapping("/trend-point")
-    public R<StatDtos.TrendPointDetail> trendPoint(@RequestParam String month, StatDtos.Scope scope) {
+    public R<StatDtos.TrendPointDetail> trendPoint(
+            @RequestParam String month, StatDtos.Scope scope) {
         reportService.requireAdmin();
         return R.ok(reportService.trendPointDetail(month, scope));
     }

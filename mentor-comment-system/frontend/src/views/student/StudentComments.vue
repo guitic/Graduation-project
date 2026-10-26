@@ -5,18 +5,19 @@
         <div class="mc-page-title">我的点评</div>
         <div class="mc-page-sub">查看导师已发布给你的学业点评</div>
       </div>
-      <el-select v-model="query.term" placeholder="全部学期" clearable class="term-select" @change="onSearch">
+      <el-select
+        v-model="query.term"
+        placeholder="全部学期"
+        clearable
+        class="term-select"
+        @change="onSearch"
+      >
         <el-option v-for="t in terms" :key="t" :label="t" :value="t" />
       </el-select>
     </div>
 
     <div v-loading="loading" class="cards">
-      <div
-        v-for="c in rows"
-        :key="c.id"
-        class="mc-card comment-card"
-        @click="openDetail(c)"
-      >
+      <div v-for="c in rows" :key="c.id" class="mc-card comment-card" @click="openDetail(c)">
         <div class="cc-head">
           <div class="cc-topic">{{ c.topic }}</div>
           <div class="cc-time mc-mono">{{ fmtDate(c.publishedAt) }}</div>
@@ -34,11 +35,7 @@
         </div>
       </div>
 
-      <el-empty
-        v-if="!loading && !rows.length"
-        description="暂无已发布的点评"
-        :image-size="96"
-      />
+      <el-empty v-if="!loading && !rows.length" description="暂无已发布的点评" :image-size="96" />
     </div>
 
     <div v-if="total > query.size" class="pager">
@@ -59,9 +56,15 @@
       </template>
       <div v-if="detail" class="detail-body">
         <div class="db-meta">
-          <span><el-icon><User /></el-icon>{{ detail.teacherName }}</span>
-          <span><el-icon><Calendar /></el-icon>{{ detail.term }}</span>
-          <span><el-icon><Clock /></el-icon>{{ fmtTime(detail.publishedAt) }}</span>
+          <span
+            ><el-icon><User /></el-icon>{{ detail.teacherName }}</span
+          >
+          <span
+            ><el-icon><Calendar /></el-icon>{{ detail.term }}</span
+          >
+          <span
+            ><el-icon><Clock /></el-icon>{{ fmtTime(detail.publishedAt) }}</span
+          >
         </div>
         <div class="db-content">{{ detail.content }}</div>
       </div>
