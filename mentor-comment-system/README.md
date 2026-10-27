@@ -47,8 +47,19 @@ npm run dev
    export DB_PASSWORD=你的MySQL密码
    ```
    连接串在 `backend/src/main/resources/application.yml`，可用 `DB_USERNAME` / `DB_PASSWORD` 覆盖。
-3. 不带 `demo` profile 启动：`mvn -s ../maven-settings.xml spring-boot:run`
-4. 首次启动自动执行 `db/schema.sql` 建表，`DemoDataInitializer` 在无用户时生成种子数据
+3. **首次建表要手动执行**（默认 profile 不会自动建表，原因见下）：
+   ```bash
+   mysql -u root -p mentor_comment < sql/schema.sql
+   ```
+4. 不带 `demo` profile 启动：`mvn -s ../maven-settings.xml spring-boot:run`
+
+> **为什么 MySQL 模式不自动建表**：`schema.sql` 是「先 drop 再 create」的重置脚本。
+> 若交给 `spring.sql.init.mode=always` 自动执行，每次重启都会清空业务数据——而且不报错，只是数据没了。
+> 所以默认 profile 设为 `mode: never`，只有 demo（H2 内存库）才在启动时重建。
+>
+> **种子数据默认关闭**：`DemoDataInitializer` 与登录页演示账号都受 `app.demo-seed.enabled` 控制，
+> 该值只在 `demo` profile 为 `true`。MySQL 模式如需演示数据，显式加 `--app.demo-seed.enabled=true`。
+
 
 ### 4. 常见问题
 
@@ -133,11 +144,12 @@ mentor-comment-system/
 ├── frontend/                # Vue 3 前端
 │   └── src/
 │       ├── api/             # axios 封装 + 各模块接口
-│       ├── components/      # StatusTag / SentimentTag / AuditTimeline / GateEmpty
+│       ├── components/      # StatusTag / SentimentTag / AuditTimeline / GateEmpty / dashboard/*
+│       ├── composables/     # useChart（ECharts 生命周期）
 │       ├── layouts/         # AppLayout（角色菜单）
 │       ├── views/           # Login / Dashboard / teacher / admin / student
 │       ├── router/ store/   # 路由守卫 + Pinia 登录态
-│       └── utils/           # 状态/情感/动作映射
+│       └── utils/           # 状态/情感/动作映射 + limits（门槛读取点）
 ├── sql/schema.sql           # 数据库脚本（与 resources/db 一致）
 └── maven-settings.xml       # 阿里云镜像（避免直连超时）
 ```
@@ -148,7 +160,8 @@ mentor-comment-system/
 
 | 模块 | 路径 | 说明 |
 | --- | --- | --- |
-| 认证 | `POST /api/auth/login` · `GET /api/auth/me` · `GET /api/demo/accounts` | 登录/当前用户/演示账号 |
+| 认证 | `POST /api/auth/login` · `GET /api/auth/me` · `GET /api/demo/accounts` | 登录/当前用户/演示账号（非 demo 返回空） |
+| 元数据 | `GET /api/meta/limits` | 门槛单一来源：审核意见字数 + 隐私样本量，前端文案由此渲染 |
 | 点评 | `/api/comment/page` · `/admin-page` · `/student-page` · `/{id}` · `POST/PUT/DELETE` · `/{id}/submit` | 三端列表 + 增改删 + 提交 |
 | 审核 | `/api/audit/pending` · `/unpublished` · `/published` · `/{id}/approve|return|reject|publish|unpublish` · `/{id}/history` | 审核与发布/撤回 |
 | 报表 | `/api/report/dashboard` · `/sentiment` · `/trend` · `/audit-stat` · `/wordcloud` · `/word-detail` · `/trend-point` · `/comment/{id}/sentiment` | 统计与下钻 |
@@ -156,3 +169,20 @@ mentor-comment-system/
 | 学生 | `/api/student-comment/page` · `/{id}` | 学生仅 5 字段 |
 
 > 所有响应统一为 `{ code, msg, data }`，`code=0` 表示成功。鉴权令牌放在请求头 `satoken`。
+
+---
+
+## 八、质量门禁
+
+```bash
+cd backend  && mvn -s ../maven-settings.xml test    # Checkstyle 0 违规 + 32 个测试
+cd ../frontend && npm run check                     # ESLint 0 error + Prettier 一致 + 构建通过
+cd .. && sh scripts/check-schema-sync.sh            # 两份 schema 同源
+```
+
+| 测试类 | 数量 | 守住什么 |
+| --- | --- | --- |
+| `AuditStateMachineTest` | 21 | 七个事件类型、字数门槛分档、条件化 UPDATE（影响 0 行 → 409）、发布才触发分析 |
+| `AuditPermissionTest` | 10 | 学生/导师/管理员 × 本人/他人 × 已发布/未发布；history 越权回归守卫 |
+| `SentimentEvalTest` | 1 | 情感分析准确率 82.7% / Kappa 0.74（固定验证集，防方法退化） |
+
