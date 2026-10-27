@@ -15,6 +15,7 @@ import com.graduation.mentor.mapper.UserMapper;
 import java.time.LocalDateTime;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,10 @@ public class AuthService {
     private final StudentMapper studentMapper;
     private final ClazzMapper clazzMapper;
     private final PasswordEncoder passwordEncoder;
+
+    /** 演示能力开关：非 demo 环境不暴露演示账号（含统一密码） */
+    @Value("${app.demo-seed.enabled:false}")
+    private boolean demoSeedEnabled;
 
     public AuthDtos.LoginResp login(AuthDtos.LoginReq req) {
         User user =
@@ -125,9 +130,19 @@ public class AuthService {
         };
     }
 
-    /** 演示账号列表（登录页 chip 用），不含任何真实密码以外的敏感信息 */
+    /**
+     * 演示账号列表（登录页 chip 用）。
+     *
+     * <p><b>为什么必须跟着 demo 开关走</b>：这个接口在鉴权白名单里（登录前就要取 chip）， 若在真实环境也返回"统一密码 123456"，
+     * 等于把可登录的账号口令公开写在匿名接口上。生产环境返回空列表，登录页自动隐藏演示区。
+     */
     public Map<String, Object> demoAccounts() {
+        if (!demoSeedEnabled) {
+            return Map.of("enabled", false, "accounts", java.util.List.of());
+        }
         return Map.of(
+                "enabled",
+                true,
                 "password",
                 "123456",
                 "accounts",

@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,9 +59,13 @@ import org.springframework.transaction.annotation.Transactional;
  * 必翻红。 <b>只测阈值两侧、不测阈值本身，任何中间错值都会全绿通过。</b>
  *
  * <p>边缘班（5/4/3/2 条）必须落在**同一自然月**，否则桶级样本被摊薄， "图正常画但某点不可下钻"这个演示点会消失。
+ *
+ * <p><b>开关</b>：由 {@code app.demo-seed.enabled} 控制，默认 <b>关闭</b>，只在 {@code demo} profile 打开。 生产库里凭空出现
+ * 70 条演示点评是数据事故，不能靠"记得别在生产启动"来规避。
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(prefix = "app.demo-seed", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DemoDataInitializer implements ApplicationRunner {
 

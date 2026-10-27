@@ -15,7 +15,10 @@ spring:
     init:
       mode: always
       schema-locations: classpath:db/schema.sql
-      continue-on-error: true
+      # 内存库每次启动都要重建，schema 必须一次成功。关掉 continue-on-error：
+      # 上一版把它设成 true，结果 schema 缺列（action_type/withdrawn_at）被静默吞掉，
+      # 报错现场出现在几层调用之后，排查成本远高于直接启动失败。
+      continue-on-error: false
   h2:
     console:
       enabled: true
@@ -24,6 +27,11 @@ spring:
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# demo profile 才打开演示能力：灌种子数据 + 登录页展示演示账号
+app:
+  demo-seed:
+    enabled: true
 
 logging:
   level:
