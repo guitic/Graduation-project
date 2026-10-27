@@ -52,11 +52,12 @@
           </el-button>
         </el-form>
 
-        <div class="demo-block">
+        <!-- 演示区仅在 demo 环境下发账号时出现；生产环境接口返回空列表，这里整块隐藏 -->
+        <div v-if="accounts.length" class="demo-block">
           <div class="demo-head">
             <span>演示账号</span>
             <span class="demo-pwd"
-              >统一密码：<b>{{ demoPassword || '123456' }}</b></span
+              >统一密码：<b>{{ demoPassword }}</b></span
             >
           </div>
           <div class="chips">
@@ -113,7 +114,7 @@ onMounted(async () => {
 
 function fill(a) {
   form.value.username = a.username
-  form.value.password = demoPassword.value || '123456'
+  form.value.password = demoPassword.value
 }
 
 async function onSubmit() {

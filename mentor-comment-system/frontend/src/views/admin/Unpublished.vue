@@ -158,6 +158,7 @@ import StatusTag from '../../components/StatusTag.vue'
 import { unpublishedPage, publishedPage, publish, unpublish } from '../../api/audit'
 import { fmtTime } from '../../utils/status'
 import { useAuthStore } from '../../store/auth'
+import { limits, ensureLimits } from '../../utils/limits'
 
 const auth = useAuthStore()
 
@@ -180,30 +181,31 @@ const mode = ref('publish')
 const reason = ref('')
 
 const dlg = computed(() => {
+  const o = limits.opinion
   if (mode.value === 'publish') {
     const rePublish = !!target.value?.everWithdrawn
     return {
       title: rePublish ? '再发布（曾撤回）' : '发布点评',
-      minLen: rePublish ? 5 : 0,
+      minLen: rePublish ? o.republish : 0,
       btnType: 'primary',
       tone: 'info',
       confirmText: '确认发布',
       tip: rePublish
-        ? '该点评曾被撤回，再次发布属于「再发布」，需填写理由（≥5 字）说明为何放回。'
+        ? `该点评曾被撤回，再次发布属于「再发布」，需填写理由（≥${o.republish} 字）说明为何放回。`
         : '首次发布无需理由。发布后学生立即可见，并纳入统计与分析。',
       placeholder: rePublish
-        ? '请填写再发布理由（≥5 字），如：内容已复核无误，恢复发布。'
+        ? `请填写再发布理由（≥${o.republish} 字），如：内容已复核无误，恢复发布。`
         : '（可选）填写发布备注'
     }
   }
   return {
     title: '撤回发布',
-    minLen: 10,
+    minLen: o.unpublish,
     btnType: 'warning',
     tone: 'warn',
     confirmText: '确认撤回',
-    tip: '撤回后学生立即不可见、不再纳入统计，点评回到「待发布」。需填写理由（≥10 字）。',
-    placeholder: '请填写撤回理由（≥10 字），如：内容存在事实性错误，需导师核实后重新发布。'
+    tip: `撤回后学生立即不可见、不再纳入统计，点评回到「待发布」。需填写理由（≥${o.unpublish} 字）。`,
+    placeholder: `请填写撤回理由（≥${o.unpublish} 字），如：内容存在事实性错误，需导师核实后重新发布。`
   }
 })
 
@@ -283,6 +285,7 @@ async function confirm() {
 }
 
 onMounted(() => {
+  ensureLimits()
   loadUnpub()
   loadPub()
 })

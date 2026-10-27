@@ -226,6 +226,7 @@ import { commentSentiment } from '../../api/report'
 import { terms as termsApi, teachers as teachersApi } from '../../api/person'
 import { useAuthStore } from '../../store/auth'
 import { fmtTime } from '../../utils/status'
+import { limits, ensureLimits } from '../../utils/limits'
 
 const auth = useAuthStore()
 
@@ -236,48 +237,50 @@ const query = reactive({ page: 1, size: 10, term: '', teacherId: null, keyword: 
 const terms = ref([])
 const teachers = ref([])
 
-const ACTIONS = {
-  approvePublish: {
-    title: '通过并发布',
-    minLen: 5,
-    btnType: 'success',
-    tone: 'ok',
-    tip: '通过并发布后，学生立即可见，并纳入情感分析与词频统计。',
-    placeholder: '请填写通过理由（≥5 字），如：内容完整、表述规范，同意发布。'
-  },
-  approveOnly: {
-    title: '仅通过（待发布）',
-    minLen: 10,
-    btnType: 'primary',
-    tone: 'info',
-    tip: '仅通过后进入「待发布」，学生暂不可见、不纳入统计，可在待发布列表再次发布。',
-    placeholder:
-      '请填写仅通过、暂不发布的理由（≥10 字），如：内容需进一步核实，先通过但暂不推送学生。'
-  },
-  return: {
-    title: '退回修改',
-    minLen: 10,
-    btnType: 'warning',
-    tone: 'warn',
-    tip: '退回后导师可修改并重新提交，进入新一轮审核。',
-    placeholder: '请填写退回原因与修改建议（≥10 字），如：请补充具体课程与改进建议，重新提交。'
-  },
-  reject: {
-    title: '驳回',
-    minLen: 20,
-    btnType: 'danger',
-    tone: 'danger',
-    tip: '驳回为终态，不发布、不纳入统计。',
-    placeholder: '请填写驳回理由（≥20 字），如：内容与学业指导无关或存在不当表述，经复核不予通过。'
+const ACTIONS = computed(() => {
+  const o = limits.opinion
+  return {
+    approvePublish: {
+      title: '通过并发布',
+      minLen: o.approvePublish,
+      btnType: 'success',
+      tone: 'ok',
+      tip: '通过并发布后，学生立即可见，并纳入情感分析与词频统计。',
+      placeholder: `请填写通过理由（≥${o.approvePublish} 字），如：内容完整、表述规范，同意发布。`
+    },
+    approveOnly: {
+      title: '仅通过（待发布）',
+      minLen: o.approveOnly,
+      btnType: 'primary',
+      tone: 'info',
+      tip: '仅通过后进入「待发布」，学生暂不可见、不纳入统计，可在待发布列表再次发布。',
+      placeholder: `请填写仅通过、暂不发布的理由（≥${o.approveOnly} 字），如：内容需进一步核实，先通过但暂不推送学生。`
+    },
+    return: {
+      title: '退回修改',
+      minLen: o.return,
+      btnType: 'warning',
+      tone: 'warn',
+      tip: '退回后导师可修改并重新提交，进入新一轮审核。',
+      placeholder: `请填写退回原因与修改建议（≥${o.return} 字），如：请补充具体课程与改进建议，重新提交。`
+    },
+    reject: {
+      title: '驳回',
+      minLen: o.reject,
+      btnType: 'danger',
+      tone: 'danger',
+      tip: '驳回为终态，不发布、不纳入统计。',
+      placeholder: `请填写驳回理由（≥${o.reject} 字），如：内容与学业指导无关或存在不当表述，经复核不予通过。`
+    }
   }
-}
+})
 
 const actionVisible = ref(false)
 const acting = ref(false)
 const target = ref(null)
 const actionKey = ref('approvePublish')
 const opinion = ref('')
-const act = computed(() => ACTIONS[actionKey.value])
+const act = computed(() => ACTIONS.value[actionKey.value])
 
 const detailVisible = ref(false)
 const current = ref(null)
@@ -373,6 +376,7 @@ async function openDetail(row) {
 }
 
 onMounted(() => {
+  ensureLimits()
   loadOptions()
   load()
 })
