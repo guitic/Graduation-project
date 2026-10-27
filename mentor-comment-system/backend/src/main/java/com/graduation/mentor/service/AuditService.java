@@ -15,10 +15,7 @@ import com.graduation.mentor.entity.CommentAudit;
 import com.graduation.mentor.mapper.CommentAuditMapper;
 import com.graduation.mentor.mapper.CommentMapper;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -119,11 +116,9 @@ public class AuditService {
 
     private PageResult<CommentDtos.Row> pageOf(LambdaQueryWrapper<Comment> w, CommentDtos.Query q) {
         Page<Comment> p = commentMapper.selectPage(new Page<>(q.getPage(), q.getSize()), w);
-        List<CommentDtos.Row> rows = new ArrayList<>();
-        Map<Long, String> tCache = new HashMap<>();
-        Map<Long, com.graduation.mentor.entity.Student> sCache = new HashMap<>();
-        p.getRecords().forEach(c -> rows.add(commentService.toRow(c, tCache, sCache)));
-        return PageResult.of(rows, p.getTotal(), q.getPage(), q.getSize());
+        // 行转换统一走批量预加载，避免逐行查导师/学生/班级/情感（N+1）
+        return PageResult.of(
+                commentService.toRows(p.getRecords()), p.getTotal(), q.getPage(), q.getSize());
     }
 
     public long pendingCount() {

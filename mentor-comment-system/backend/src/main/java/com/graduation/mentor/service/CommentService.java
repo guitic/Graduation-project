@@ -29,8 +29,10 @@ import com.graduation.mentor.mapper.TeacherStudentMapper;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -171,13 +173,7 @@ public class CommentService {
 
     private PageResult<CommentDtos.Row> page(LambdaQueryWrapper<Comment> w, CommentDtos.Query q) {
         Page<Comment> p = commentMapper.selectPage(new Page<>(q.getPage(), q.getSize()), w);
-        List<CommentDtos.Row> rows = new ArrayList<>();
-        Map<Long, String> tName = new HashMap<>();
-        Map<Long, Student> sCache = new HashMap<>();
-        for (Comment c : p.getRecords()) {
-            rows.add(toRow(c, tName, sCache));
-        }
-        return PageResult.of(rows, p.getTotal(), q.getPage(), q.getSize());
+        return PageResult.of(toRows(p.getRecords()), p.getTotal(), q.getPage(), q.getSize());
     }
 
     /** 详情：按角色做数据范围校验 */
@@ -189,7 +185,7 @@ public class CommentService {
         assertCanView(c);
 
         CommentDtos.Detail d = new CommentDtos.Detail();
-        d.setComment(toRow(c, new HashMap<>(), new HashMap<>()));
+        d.setComment(toRows(List.of(c)).get(0));
 
         List<CommentAudit> audits =
                 auditMapper.selectList(
@@ -382,27 +378,111 @@ public class CommentService {
 
     // ------------------------------------------------------------------ 行转换
 
-    public CommentDtos.Row toRow(
-            Comment c, Map<Long, String> tNameCache, Map<Long, Student> sCache) {
+    /**
+     * 批量行转换（列表页唯一入口）。
+     *
+     * <p><b>为什么不是逐行查</b>：旧实现每行要查导师、学生、班级、专业、情感、最近审核共 6 次， pageSize=20 时约 120 次 SQL。其中导师/学生只靠两个
+     * HashMap 缓存，而班级与专业随学生变化、 情感与审核随点评变化，命中率几乎为零——分页越深越慢，且压测时表现为"数据库 CPU 高、接口慢"。
+     *
+     * <p>改为按 id 集合批量取：每个维度 1 条 SQL，空集合直接跳过。分页固定 **6 条 SQL**，与页大小无关。
+     */
+    public List<CommentDtos.Row> toRows(List<Comment> comments) {
+        if (comments == null || comments.isEmpty()) {
+            return List.of();
+        }
+        RowContext ctx = preload(comments);
+        List<CommentDtos.Row> rows = new ArrayList<>(comments.size());
+        for (Comment c : comments) {
+            rows.add(toRow(c, ctx));
+        }
+        return rows;
+    }
+
+    /** 一次性把一页数据依赖的关联对象取全 */
+    private RowContext preload(List<Comment> comments) {
+        RowContext ctx = new RowContext();
+        Set<Long> teacherIds = new HashSet<>();
+        Set<Long> studentIds = new HashSet<>();
+        List<Long> commentIds = new ArrayList<>(comments.size());
+        for (Comment c : comments) {
+            if (c.getTeacherId() != null) {
+                teacherIds.add(c.getTeacherId());
+            }
+            if (c.getStudentId() != null) {
+                studentIds.add(c.getStudentId());
+            }
+            commentIds.add(c.getId());
+        }
+
+        if (!teacherIds.isEmpty()) {
+            for (Teacher t : teacherMapper.selectBatchIds(teacherIds)) {
+                ctx.teacherNames.put(t.getId(), t.getName());
+            }
+        }
+        if (!studentIds.isEmpty()) {
+            for (Student s : studentMapper.selectBatchIds(studentIds)) {
+                ctx.students.put(s.getId(), s);
+            }
+        }
+        Set<Long> clazzIds = new HashSet<>();
+        for (Student s : ctx.students.values()) {
+            if (s.getClazzId() != null) {
+                clazzIds.add(s.getClazzId());
+            }
+        }
+        if (!clazzIds.isEmpty()) {
+            for (Clazz cl : clazzMapper.selectBatchIds(clazzIds)) {
+                ctx.clazzes.put(cl.getId(), cl);
+            }
+        }
+        Set<Long> majorIds = new HashSet<>();
+        for (Clazz cl : ctx.clazzes.values()) {
+            if (cl.getMajorId() != null) {
+                majorIds.add(cl.getMajorId());
+            }
+        }
+        if (!majorIds.isEmpty()) {
+            for (Major m : majorMapper.selectBatchIds(majorIds)) {
+                ctx.majors.put(m.getId(), m);
+            }
+        }
+
+        // 情感结果按 id 升序覆盖：同一点评若存在历史多行，取最新一条（与 limit 1 语义一致）
+        for (CommentSentiment se :
+                sentimentMapper.selectList(
+                        new LambdaQueryWrapper<CommentSentiment>()
+                                .in(CommentSentiment::getCommentId, commentIds)
+                                .orderByAsc(CommentSentiment::getId))) {
+            ctx.sentiments.put(se.getCommentId(), se);
+        }
+        // 最近一条审核事件：按时间倒序，putIfAbsent 保留首条
+        for (CommentAudit a :
+                auditMapper.selectList(
+                        new LambdaQueryWrapper<CommentAudit>()
+                                .in(CommentAudit::getCommentId, commentIds)
+                                .orderByDesc(CommentAudit::getAuditAt)
+                                .orderByDesc(CommentAudit::getId))) {
+            ctx.lastAudits.putIfAbsent(a.getCommentId(), a);
+        }
+        return ctx;
+    }
+
+    public CommentDtos.Row toRow(Comment c, RowContext ctx) {
         CommentDtos.Row r = new CommentDtos.Row();
         r.setId(c.getId());
         r.setTeacherId(c.getTeacherId());
-        r.setTeacherName(
-                tNameCache.computeIfAbsent(
-                        c.getTeacherId(),
-                        tid -> {
-                            Teacher t = teacherMapper.selectById(tid);
-                            return t == null ? "未知导师" : t.getName();
-                        }));
-        Student s = sCache.computeIfAbsent(c.getStudentId(), sid -> studentMapper.selectById(sid));
+        String tName = ctx.teacherNames.get(c.getTeacherId());
+        r.setTeacherName(tName == null ? "未知导师" : tName);
+
+        Student s = ctx.students.get(c.getStudentId());
         if (s != null) {
             r.setStudentId(s.getId());
             r.setStudentName(s.getName());
             r.setStudentNo(s.getStudentNo());
-            Clazz cl = clazzMapper.selectById(s.getClazzId());
+            Clazz cl = ctx.clazzes.get(s.getClazzId());
             if (cl != null) {
                 r.setClazzName(cl.getName());
-                Major m = majorMapper.selectById(cl.getMajorId());
+                Major m = ctx.majors.get(cl.getMajorId());
                 r.setMajorName(m == null ? null : m.getName());
             }
         }
@@ -419,27 +499,29 @@ public class CommentService {
         r.setCreatedAt(c.getCreatedAt());
         r.setVersion(c.getVersion());
 
-        CommentSentiment se =
-                sentimentMapper.selectOne(
-                        new LambdaQueryWrapper<CommentSentiment>()
-                                .eq(CommentSentiment::getCommentId, c.getId())
-                                .last("limit 1"));
+        CommentSentiment se = ctx.sentiments.get(c.getId());
         if (se != null) {
             r.setSentimentLabel(se.getLabel());
             r.setLowConfidence(se.getLowConfidence() != null && se.getLowConfidence() == 1);
         }
 
-        CommentAudit last =
-                auditMapper.selectOne(
-                        new LambdaQueryWrapper<CommentAudit>()
-                                .eq(CommentAudit::getCommentId, c.getId())
-                                .orderByDesc(CommentAudit::getAuditAt)
-                                .last("limit 1"));
+        CommentAudit last = ctx.lastAudits.get(c.getId());
         if (last != null) {
             r.setLastOpinion(authContext.isStudent() ? null : last.getOpinion());
             r.setLastAuditAt(last.getAuditAt());
             r.setLastAuditor(last.getAuditorName());
         }
         return r;
+    }
+
+    /** 一页数据的关联对象快照：把 N+1 压成固定条数的 SQL */
+    public static final class RowContext {
+
+        private final Map<Long, String> teacherNames = new HashMap<>();
+        private final Map<Long, Student> students = new HashMap<>();
+        private final Map<Long, Clazz> clazzes = new HashMap<>();
+        private final Map<Long, Major> majors = new HashMap<>();
+        private final Map<Long, CommentSentiment> sentiments = new HashMap<>();
+        private final Map<Long, CommentAudit> lastAudits = new HashMap<>();
     }
 }
