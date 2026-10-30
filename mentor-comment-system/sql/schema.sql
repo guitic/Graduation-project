@@ -177,7 +177,33 @@ create unique index uk_sentiment_comment on comment_sentiment (comment_id);
 create index idx_sentiment_label on comment_sentiment (label);
 
 -- ---------------------------------------------------------------------------
--- 8. 词频统计
+-- 8. AI 预审结果（一条点评一条，文本或规则版本变化时重算）
+--    设计约束：本表只存"建议"，不参与任何状态判定。
+--    comment.status 的唯一写入者仍是人工审核动作，预审表清空也不影响业务流程。
+--    content_hash + rule_version 双匹配，与 comment_sentiment 同一套复用策略。
+-- ---------------------------------------------------------------------------
+drop table if exists comment_precheck;
+create table comment_precheck (
+    id              bigint       not null auto_increment,
+    comment_id      bigint       not null,
+    content_hash    varchar(64)  not null,
+    rule_version    varchar(16)  not null,
+    risk_level      varchar(16)  not null,
+    risk_score      int          not null default 0,
+    suggest_action  varchar(32)  not null,
+    suggest_opinion varchar(500),
+    issues          text,
+    issue_count     int          not null default 0,
+    engine          varchar(32)  not null,
+    cost_ms         int          not null default 0,
+    checked_at      datetime     not null,
+    primary key (id)
+);
+create unique index uk_precheck_comment on comment_precheck (comment_id);
+create index idx_precheck_level on comment_precheck (risk_level);
+
+-- ---------------------------------------------------------------------------
+-- 9. 词频统计
 --    设计决策：**不建词频缓存表**。
 --    理由：派生表没有失效机制，一旦点评被退回改稿或撤回，缓存就与业务状态不同步，
 --    而且这类错误不报错、图看起来完全正常。种子规模 68 条、真实规模数百条，
@@ -186,7 +212,7 @@ create index idx_sentiment_label on comment_sentiment (label);
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 9. 操作日志（提交 / 审核 / 发布 / 撤回 等关键动作留痕）
+-- 10. 操作日志（提交 / 审核 / 发布 / 撤回 等关键动作留痕）
 -- ---------------------------------------------------------------------------
 drop table if exists sys_oper_log;
 create table sys_oper_log (
@@ -203,3 +229,25 @@ create table sys_oper_log (
     primary key (id)
 );
 create index idx_log_target on sys_oper_log (target_type, target_id);
+
+-- ---------------------------------------------------------------------------
+-- 12. 系统配置（运行期可改的键值对）
+--     当前只承载 AI 摘要相关配置：教务在后台填 API Key，保存即生效，无需重启、
+--     无需改环境变量、无需重新打包。导师端下一次点「生成摘要建议」就用上新 Key。
+--
+--     为什么不做加密存储：本项目是校内单机部署，加密就需要一个加密密钥，
+--     而那个密钥又要放在环境变量里——等于把"一个配置"变成"两个配置"，
+--     攻击面没有缩小，运维复杂度翻倍。真正的防线是：读取接口只返回掩码，
+--     明文永不出服务端；写接口仅教务可用；操作日志不记录 Key 内容。
+-- ---------------------------------------------------------------------------
+drop table if exists sys_config;
+create table sys_config (
+    id           bigint       not null auto_increment,
+    config_key   varchar(64)  not null,
+    config_value varchar(512),
+    updated_by   bigint,
+    updated_at   datetime     not null,
+    primary key (id)
+);
+create unique index uk_config_key on sys_config (config_key);
+

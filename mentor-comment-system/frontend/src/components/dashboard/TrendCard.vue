@@ -6,9 +6,20 @@
     <div ref="el" class="chart-canvas" />
 
     <template #foot>
-      <span class="hint">
-        <el-icon><Pointer /></el-icon> 点击任一月份柱，查看该月点评明细（按桶级样本量校验）
+      <!-- 图例下沉到页脚：ECharts 的 legend 默认占据右上角，会和右轴名「正向率」、
+           当月标注三者叠在一起。样式系统里本来就有 .legend-row，只是没用上。 -->
+      <div class="legend-row">
+        <span class="lg"><i style="background: #12805c" />正向</span>
+        <span class="lg"><i style="background: #8f959e" />中性</span>
+        <span class="lg"><i style="background: #d92d20" />负向</span>
+        <span v-if="data?.rateAvailable" class="lg">
+          <i style="background: #2b5ce6; border-radius: 50%" />正向率
+        </span>
+      </div>
+      <span v-if="drillable" class="hint">
+        <el-icon><Pointer /></el-icon> 点击月份柱查看明细
       </span>
+      <span v-else class="hint">当月为未完结月，柱体以虚线标注；个人画像页不提供明细下钻</span>
     </template>
   </ChartCard>
 </template>
@@ -28,7 +39,9 @@ import { useChart } from '../../composables/useChart'
  */
 const props = defineProps({
   data: { type: Object, default: null },
-  minSample: { type: Number, default: 5 }
+  minSample: { type: Number, default: 5 },
+  /** 是否允许点击下钻。教师端个人画像页关闭，避免点了没反应 */
+  drillable: { type: Boolean, default: true }
 })
 const emit = defineEmits(['drill'])
 
@@ -73,14 +86,10 @@ function buildOption() {
         inProgIdx >= 0
           ? {
               silent: true,
-              itemStyle: { color: 'rgba(43,92,230,0.06)' },
-              label: {
-                show: true,
-                position: 'top',
-                formatter: '当月·更新中',
-                color: '#2b5ce6',
-                fontSize: 11
-              },
+              itemStyle: { color: 'rgba(43,92,230,0.05)' },
+              // 不写字：label 默认贴在区域顶部，会和图例/轴名抢右上角，
+              // 「更新中」改由 x 轴标签后缀表达，不再额外占空间
+              label: { show: false },
               data: [[{ xAxis: t.months[inProgIdx] }, { xAxis: t.months[inProgIdx] }]]
             }
           : undefined
@@ -107,9 +116,12 @@ function buildOption() {
     {
       type: 'value',
       name: '条数',
-      nameTextStyle: { color: '#b4b8bf', fontSize: 11 },
+      nameTextStyle: { color: '#6b7280', fontSize: 11 },
+      // 取整刻度：默认 splitNumber 会给出 21 / 18 / 15 这类非整数格线
+      splitNumber: 4,
+      minInterval: 1,
       splitLine: { lineStyle: { color: '#f0f1f4' } },
-      axisLabel: { color: '#8f959e', fontSize: 11 }
+      axisLabel: { color: '#6b7280', fontSize: 11 }
     }
   ]
 
@@ -131,10 +143,12 @@ function buildOption() {
       name: '正向率',
       min: 0,
       max: 1,
-      nameTextStyle: { color: '#b4b8bf', fontSize: 11 },
+      // 轴名贴住轴线顶端，避免和图表上沿的其它元素抢位
+      nameGap: 14,
+      nameTextStyle: { color: '#6b7280', fontSize: 11, align: 'left' },
       splitLine: { show: false },
       axisLabel: {
-        color: '#8f959e',
+        color: '#6b7280',
         fontSize: 11,
         formatter: (v) => Math.round(v * 100) + '%'
       }
@@ -143,20 +157,22 @@ function buildOption() {
 
   return {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    legend: {
-      top: 0,
-      right: 8,
-      itemWidth: 10,
-      itemHeight: 10,
-      textStyle: { color: '#646a73', fontSize: 11 }
-    },
-    grid: { left: 46, right: t.rateAvailable ? 50 : 18, top: 40, bottom: 30 },
+    // 图例交给 ChartCard 页脚手写，见模板 #foot
+    legend: { show: false },
+    // top 留 32px：两根 Y 轴的轴名都贴在轴顶端，22px 会被画布上沿切掉半个字
+    grid: { left: 46, right: t.rateAvailable ? 50 : 18, top: 32, bottom: 34 },
     xAxis: {
       type: 'category',
       data: t.months,
       axisTick: { show: false },
       axisLine: { lineStyle: { color: '#e5e6eb' } },
-      axisLabel: { color: '#8f959e', fontSize: 11 }
+      axisLabel: {
+        color: '#6b7280',
+        fontSize: 11,
+        lineHeight: 15,
+        // 未完结月直接在刻度上标注，替代原来会压字的 markArea label
+        formatter: (v, i) => (i === inProgIdx ? `${v}\n更新中` : v)
+      }
     },
     yAxis,
     series
@@ -166,7 +182,7 @@ function buildOption() {
 const { render } = useChart(el, () => (hasData.value ? buildOption() : null), {
   // 点击柱子下钻：是否放行由后端按该桶样本量判定，前端只负责把月份传过去
   onClick: (p) => {
-    if (p?.componentType !== 'series') return
+    if (!props.drillable || p?.componentType !== 'series') return
     emit('drill', p.name)
   }
 })

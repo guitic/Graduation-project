@@ -21,12 +21,24 @@ public class ReportController {
 
     private final ReportService reportService;
     private final AnalysisService analysisService;
+    private final com.graduation.mentor.common.AuthContext authContext;
 
     /** Dashboard 聚合：一次拿全，避免多请求之间数字对不上 */
     @GetMapping("/dashboard")
     public R<StatDtos.Dashboard> dashboard(StatDtos.Scope scope) {
         reportService.requireAdmin();
         return R.ok(reportService.dashboard(scope));
+    }
+
+    /**
+     * 导师端个人画像（词云 + 情感分布 + 趋势）。
+     *
+     * <p>teacherId 由登录态决定，请求里传了也不生效——避免"改个数字看别人"。 非导师身份（学生 / 未绑定档案的账号）由 {@code currentTeacherId()}
+     * 直接拒绝。
+     */
+    @GetMapping("/my-dashboard")
+    public R<StatDtos.MyDashboard> myDashboard(StatDtos.Scope scope) {
+        return R.ok(reportService.myDashboard(authContext.currentTeacherId(), scope));
     }
 
     @GetMapping("/sentiment")

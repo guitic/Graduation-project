@@ -38,6 +38,18 @@ const routes = [
         meta: { roles: ['ADMIN'], title: '师生管理' }
       },
       {
+        path: 'ai-config',
+        name: 'ai-config',
+        component: () => import('../views/admin/AiConfig.vue'),
+        meta: { roles: ['ADMIN'], title: 'AI 配置' }
+      },
+      {
+        path: 'my-stats',
+        name: 'my-stats',
+        component: () => import('../views/teacher/MyStats.vue'),
+        meta: { roles: ['TEACHER'], title: '我的画像' }
+      },
+      {
         path: 'comments',
         name: 'comments',
         component: () => import('../views/teacher/CommentList.vue'),

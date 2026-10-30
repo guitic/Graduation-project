@@ -25,6 +25,7 @@ import com.graduation.mentor.entity.CommentAudit;
 import com.graduation.mentor.entity.User;
 import com.graduation.mentor.mapper.CommentAuditMapper;
 import com.graduation.mentor.mapper.CommentMapper;
+import com.graduation.mentor.mapper.StudentMapper;
 import com.graduation.mentor.service.AnalysisService;
 import com.graduation.mentor.service.AuditService;
 import com.graduation.mentor.service.CommentService;
@@ -84,6 +85,7 @@ class AuditStateMachineTest {
                 new AuditService(
                         commentMapper,
                         auditMapper,
+                        mock(StudentMapper.class),
                         commentService,
                         analysisService,
                         authContext,

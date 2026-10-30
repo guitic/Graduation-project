@@ -176,6 +176,7 @@ class AuditPermissionTest {
                 new AuditService(
                         commentMapper,
                         auditMapper,
+                        studentMapper,
                         commentService,
                         analysisService,
                         authContext,
@@ -198,6 +199,7 @@ class AuditPermissionTest {
                 new AuditService(
                         commentMapper,
                         auditMapper,
+                        studentMapper,
                         spyService,
                         analysisService,
                         authContext,

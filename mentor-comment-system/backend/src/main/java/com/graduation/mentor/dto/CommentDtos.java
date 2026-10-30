@@ -86,6 +86,10 @@ public class CommentDtos {
         private boolean everWithdrawn;
         private LocalDateTime submitAt;
         private LocalDateTime createdAt;
+
+        /** 最后修改时间：保存、提交、审核、发布/撤回都会刷新；列表按它倒序，列名「更新」必须取此字段 */
+        private LocalDateTime updatedAt;
+
         private Integer version;
 
         /** 情感标签（未分析时为 null） */

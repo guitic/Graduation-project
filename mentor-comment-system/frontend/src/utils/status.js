@@ -80,6 +80,33 @@ export function sentimentMeta(label) {
   )
 }
 
+/**
+ * AI 预审风险等级。
+ *
+ * 三个等级都写成「建议」，与审核状态（待审核 / 已通过 / 已退回）严格区分：
+ * 预审结论不进入状态机，教务看到的是一份意见而不是一个已生效的判决。
+ */
+export const PRECHECK_META = {
+  PASS: { label: '建议通过', fg: 'var(--st-published-fg)', bg: 'var(--st-published-bg)' },
+  REVIEW: { label: '建议复核', fg: 'var(--st-pending-fg)', bg: 'var(--st-pending-bg)' },
+  RETURN: { label: '建议退回', fg: 'var(--st-rejected-fg)', bg: 'var(--st-rejected-bg)' }
+}
+
+export function precheckMeta(level) {
+  return PRECHECK_META[level] || { label: '未预审', fg: 'var(--mc-text-4)', bg: '#f7f8fa' }
+}
+
+/** 预审问题级别 → 中文 */
+export const PRECHECK_LEVEL_LABEL = {
+  INFO: '提示',
+  WARN: '注意',
+  BLOCKER: '阻断'
+}
+
+export function precheckLevelLabel(level) {
+  return PRECHECK_LEVEL_LABEL[level] || '提示'
+}
+
 /** 审核动作 → 中文（7 值事件流），与后端 actionLabel 保持一致 */
 export const ACTION_META = {
   SUBMIT: { label: '提交审核', type: 'info' },
@@ -104,4 +131,15 @@ export function fmtTime(v) {
 export function fmtDate(v) {
   if (!v) return '—'
   return String(v).replace('T', ' ').slice(0, 10)
+}
+
+/**
+ * 列表内短时间：MM-DD HH:mm。
+ * 列表列宽只有 96px，带年份的时间串（19 字符）必然挤掉相邻列；
+ * 年份在「学期」列已经隐含，列表内可省，详情页仍用 fmtTime 全格式。
+ */
+export function fmtShort(v) {
+  if (!v) return '—'
+  const s = String(v).replace('T', ' ')
+  return s.length >= 16 ? s.slice(5, 16) : s
 }

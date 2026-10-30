@@ -14,9 +14,10 @@
     <div v-else ref="el" class="chart-canvas" />
 
     <template #foot>
-      <span class="hint">
+      <span v-if="drillable" class="hint">
         <el-icon><Pointer /></el-icon> 点击词语，查看包含该词的点评明细（受样本门槛约束）
       </span>
+      <span v-else class="hint">词语大小表示出现频次；个人画像页不提供跨导师明细下钻</span>
     </template>
   </ChartCard>
 </template>
@@ -37,25 +38,27 @@ import { useChart } from '../../composables/useChart'
  */
 const props = defineProps({
   data: { type: Object, default: null },
-  minSample: { type: Number, default: 5 }
+  minSample: { type: Number, default: 5 },
+  /** 是否允许点击下钻。教师端个人画像页关闭，避免点了没反应 */
+  drillable: { type: Boolean, default: true }
 })
 const emit = defineEmits(['drill'])
 
 const el = ref(null)
 const enough = computed(() => !!props.data?.enough)
 
-const WORD_PALETTE = [
-  '#2b5ce6',
-  '#12805c',
-  '#b45309',
-  '#0e7490',
-  '#6d28d9',
-  '#c2410c',
-  '#475569',
-  '#15803d',
-  '#9333ea',
-  '#0369a1'
-]
+/**
+ * 词云配色：单一主色相 + 按词频调明度。
+ *
+ * 原来用 10 色彩虹，但系统里红=负向、绿=正向，词云出现红绿会暗示情感含义，
+ * 而词云只表达频次、不表达倾向。同色系深浅既能区分主次，又不会和情感色撞语义。
+ */
+function wordColor(i, n) {
+  const t = n <= 1 ? 0 : i / (n - 1) // 0 = 最高频
+  // 30% → 54%：最深给高频词，最浅一级对白底仍有 ~4.5:1，
+  // 低频词字号只有 13px，再浅就读不清了
+  return `hsl(224, 66%, ${30 + t * 24}%)`
+}
 
 function buildOption() {
   const w = props.data
@@ -88,7 +91,7 @@ function buildOption() {
         data: (w.words || []).map((x, i) => ({
           name: x.name,
           value: x.value,
-          textStyle: { color: WORD_PALETTE[i % WORD_PALETTE.length] }
+          textStyle: { color: wordColor(i, w.words.length) }
         }))
       }
     ]
@@ -96,7 +99,7 @@ function buildOption() {
 }
 
 const { render } = useChart(el, () => (enough.value ? buildOption() : null), {
-  onClick: (p) => p?.name && emit('drill', p.name)
+  onClick: (p) => props.drillable && p?.name && emit('drill', p.name)
 })
 
 watch(

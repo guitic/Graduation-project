@@ -42,7 +42,16 @@
       <header class="topbar">
         <div class="topbar-left">
           <el-icon class="crumb-icon"><component :is="currentIcon" /></el-icon>
-          <span class="crumb-title">{{ currentTitle }}</span>
+          <!--
+            面包屑而不是标题：页面内已经有 20px 的页标题 + 副标题，
+            顶栏再放一个 16px 的同名标题就是同一句话说两遍。
+            这里只承担「我在哪、怎么回去」的定位功能，视觉权重降到 13px。
+          -->
+          <nav class="crumb" aria-label="位置">
+            <button type="button" class="crumb-root" @click="goHome">工作台</button>
+            <span class="crumb-sep">/</span>
+            <span class="crumb-cur">{{ currentTitle }}</span>
+          </nav>
         </div>
         <div class="topbar-right">
           <el-tag
@@ -90,6 +99,9 @@
         </router-view>
       </main>
     </div>
+
+    <!-- 全局 AI 小助手：三角色可见，Key 复用教务端配置 -->
+    <AiAssistant />
   </div>
 </template>
 
@@ -98,6 +110,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../store/auth'
+import AiAssistant from '../components/AiAssistant.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -109,9 +122,13 @@ const ALL_MENUS = {
     { path: '/dashboard', label: '统计报表', icon: 'DataAnalysis' },
     { path: '/audit', label: '审核队列', icon: 'Stamp', badgeKey: 'pending' },
     { path: '/unpublished', label: '待发布 / 已撤回', icon: 'Promotion' },
-    { path: '/people', label: '师生管理', icon: 'UserFilled' }
+    { path: '/people', label: '师生管理', icon: 'UserFilled' },
+    { path: '/ai-config', label: 'AI 配置', icon: 'Cpu' }
   ],
-  TEACHER: [{ path: '/comments', label: '我的点评', icon: 'Document' }],
+  TEACHER: [
+    { path: '/comments', label: '我的点评', icon: 'Document' },
+    { path: '/my-stats', label: '我的画像', icon: 'TrendCharts' }
+  ],
   STUDENT: [{ path: '/my-comments', label: '我的点评', icon: 'Document' }]
 }
 
@@ -143,6 +160,10 @@ const avatarText = computed(() => {
 onMounted(() => {
   auth.refreshPending()
 })
+
+function goHome() {
+  if (route.path !== auth.homePath) router.push(auth.homePath)
+}
 
 async function onCommand(cmd) {
   if (cmd === 'logout') {
@@ -299,10 +320,32 @@ async function onCommand(cmd) {
 }
 .crumb-icon {
   color: var(--mc-primary);
-  font-size: 17px;
-}
-.crumb-title {
   font-size: 16px;
+}
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+.crumb-root {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--mc-text-3);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.crumb-root:hover {
+  color: var(--mc-primary);
+}
+.crumb-sep {
+  color: var(--mc-text-4);
+  font-size: 12px;
+}
+.crumb-cur {
+  color: var(--mc-text-1);
   font-weight: 600;
 }
 .topbar-right {

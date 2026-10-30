@@ -65,24 +65,98 @@ public class ReportService {
         d.setAuditStat(auditStat());
         d.setWordCloud(wordCloud(scope));
         d.setMethodVersion(SentimentAnalyzer.METHOD_VERSION);
-        List<Comment> pub = publishedComments(scope);
-        String asOf =
-                pub.stream()
-                        .map(Comment::getPublishedAt)
-                        .filter(java.util.Objects::nonNull)
-                        .max(java.util.Comparator.naturalOrder())
-                        .map(
-                                t ->
-                                        t.format(
-                                                java.time.format.DateTimeFormatter.ofPattern(
-                                                        "yyyy-MM-dd")))
-                        .orElse(null);
-        d.setAsOf(asOf);
+        d.setAsOf(latestPublishedAt(publishedComments(scope)));
         d.setScopeNote(
                 "仅统计已发布点评；情感分析采用词典法 "
                         + SentimentAnalyzer.METHOD_VERSION
                         + "，结果用于总体趋势参考，单条分类保留人工复核。");
         return d;
+    }
+
+    /**
+     * 导师端个人画像。
+     *
+     * <p><b>teacherId 由 Controller 从登录态取，不接受请求参数</b>：一旦允许前端传， 越权只需要改一个数字。筛选条件只放行学期 / 班级 /
+     * 时间窗三个维度，其余一律忽略。
+     *
+     * <p>返回体不含审核队列统计（{@link StatDtos.AuditStat}），见 {@link StatDtos.MyDashboard} 的注释。
+     */
+    public StatDtos.MyDashboard myDashboard(Long teacherId, StatDtos.Scope raw) {
+        StatDtos.Scope s = new StatDtos.Scope();
+        s.setTeacherId(teacherId);
+        if (raw != null) {
+            s.setTerm(raw.getTerm());
+            s.setClazzId(raw.getClazzId());
+            s.setStartDate(raw.getStartDate());
+            s.setEndDate(raw.getEndDate());
+            s.setMonths(raw.getMonths());
+        }
+
+        StatDtos.MyDashboard d = new StatDtos.MyDashboard();
+        d.setKpi(myKpi(teacherId, s));
+        d.setSentiment(sentimentDist(s));
+        d.setTrend(trend(s));
+        d.setWordCloud(wordCloud(s));
+        d.setMethodVersion(SentimentAnalyzer.METHOD_VERSION);
+        d.setAsOf(latestPublishedAt(publishedComments(s)));
+        d.setScopeNote(
+                "仅统计本人已发布点评；样本不足 " + minSample.getMinSample() + " 条时不展示占比与词云，避免从少量文本反推学生情况。");
+        return d;
+    }
+
+    /**
+     * 导师端 KPI：**必须单独算**。
+     *
+     * <p>{@link #kpi(StatDtos.Scope)} 里的草稿 / 待审核 / 退回数走的是全量口径 （{@code count(null, status)} 忽略
+     * scope），直接复用会让导师看到全院的草稿数。
+     */
+    private StatDtos.Kpi myKpi(Long teacherId, StatDtos.Scope s) {
+        StatDtos.Kpi k = new StatDtos.Kpi();
+        k.setDraft(countByTeacher(teacherId, CommentStatus.DRAFT));
+        k.setPending(countByTeacher(teacherId, CommentStatus.PENDING));
+        k.setReturned(countByTeacher(teacherId, CommentStatus.RETURNED));
+        k.setRejected(countByTeacher(teacherId, CommentStatus.REJECTED));
+        List<Comment> published = publishedComments(s);
+        k.setPublished(published.size());
+        k.setTotal(
+                published.size()
+                        + k.getDraft()
+                        + k.getPending()
+                        + k.getReturned()
+                        + k.getRejected());
+        k.setLowConfidence(lowConfidenceCount(published));
+        // 待发布是教务的待办，导师端不展示
+        k.setUnpublished(0);
+        return k;
+    }
+
+    private long countByTeacher(Long teacherId, String status) {
+        return commentMapper.selectCount(
+                new LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getTeacherId, teacherId)
+                        .eq(Comment::getStatus, status));
+    }
+
+    /** 低置信度条数：灰区样本，提示人工复核 */
+    private long lowConfidenceCount(List<Comment> published) {
+        if (published.isEmpty()) {
+            return 0;
+        }
+        List<Long> ids = published.stream().map(Comment::getId).toList();
+        return sentimentMapper.selectCount(
+                new LambdaQueryWrapper<CommentSentiment>()
+                        .in(CommentSentiment::getCommentId, ids)
+                        .eq(CommentSentiment::getLowConfidence, 1));
+    }
+
+    /** 统计截至：已发布点评中最大的 published_at，由数据自证窗口 */
+    private String latestPublishedAt(List<Comment> published) {
+        return published.stream()
+                .map(Comment::getPublishedAt)
+                .filter(java.util.Objects::nonNull)
+                .max(java.util.Comparator.naturalOrder())
+                .map(t -> t.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")))
+                .orElse(null);
     }
 
     // ------------------------------------------------------------------ KPI

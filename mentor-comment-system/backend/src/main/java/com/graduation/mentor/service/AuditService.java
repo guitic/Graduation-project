@@ -12,8 +12,10 @@ import com.graduation.mentor.common.PageResult;
 import com.graduation.mentor.dto.CommentDtos;
 import com.graduation.mentor.entity.Comment;
 import com.graduation.mentor.entity.CommentAudit;
+import com.graduation.mentor.entity.Student;
 import com.graduation.mentor.mapper.CommentAuditMapper;
 import com.graduation.mentor.mapper.CommentMapper;
+import com.graduation.mentor.mapper.StudentMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +70,7 @@ public class AuditService {
 
     private final CommentMapper commentMapper;
     private final CommentAuditMapper auditMapper;
+    private final StudentMapper studentMapper;
     private final CommentService commentService;
     private final AnalysisService analysisService;
     private final AuthContext authContext;
@@ -78,11 +81,46 @@ public class AuditService {
     public PageResult<CommentDtos.Row> pendingPage(CommentDtos.Query q) {
         requireAdmin();
         LambdaQueryWrapper<Comment> w =
-                new LambdaQueryWrapper<Comment>()
-                        .eq(Comment::getStatus, CommentStatus.PENDING)
-                        .orderByAsc(Comment::getSubmitAt)
-                        .orderByAsc(Comment::getId);
+                new LambdaQueryWrapper<Comment>().eq(Comment::getStatus, CommentStatus.PENDING);
+        applyQueueFilters(w, q);
+        // FIFO：先提交的先审，避免老单子被新单子淹没
+        w.orderByAsc(Comment::getSubmitAt).orderByAsc(Comment::getId);
         return pageOf(w, q);
+    }
+
+    /**
+     * 审核队列的三个筛选条件。
+     *
+     * <p>之前这里完全没读 q，学期/导师/搜索框都是摆设——点了「查询」列表纹丝不动， 看起来像前端没传参，实际是后端没接。关键词只匹配主题与学生姓名/学号，
+     * <b>不匹配正文</b>：教务在队列里是按"给谁、写的什么主题"找人，不是全文检索。
+     */
+    private void applyQueueFilters(LambdaQueryWrapper<Comment> w, CommentDtos.Query q) {
+        if (q.getTerm() != null && !q.getTerm().isBlank()) {
+            w.eq(Comment::getTerm, q.getTerm());
+        }
+        if (q.getTeacherId() != null) {
+            w.eq(Comment::getTeacherId, q.getTeacherId());
+        }
+        if (q.getKeyword() != null && !q.getKeyword().isBlank()) {
+            String kw = q.getKeyword().trim();
+            List<Long> studentIds =
+                    studentMapper
+                            .selectList(
+                                    new LambdaQueryWrapper<Student>()
+                                            .like(Student::getName, kw)
+                                            .or()
+                                            .like(Student::getStudentNo, kw))
+                            .stream()
+                            .map(Student::getId)
+                            .toList();
+            w.and(
+                    x -> {
+                        x.like(Comment::getTopic, kw);
+                        if (!studentIds.isEmpty()) {
+                            x.or().in(Comment::getStudentId, studentIds);
+                        }
+                    });
+        }
     }
 
     /**

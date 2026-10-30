@@ -57,6 +57,32 @@ app:
   demo-seed:
     enabled: false
 
+  # 大模型摘要（可选增强）。
+  # 默认关闭：关闭时走规则实现，功能完整、结果可解释；开启后才有模型参与。
+  # 端点兼容任意 OpenAI 协议（DeepSeek / 通义 / 自建 vLLM），改 base-url 即可。
+  # 密钥只从环境变量读，绝不写进仓库：
+  #   Windows PowerShell: $env:AI_ENABLED="true"; $env:AI_API_KEY="sk-xxx"; mvn spring-boot:run
+  ai:
+    enabled: ${AI_ENABLED:false}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:deepseek-chat}
+    connect-timeout-seconds: 3
+    read-timeout-seconds: 10
+    temperature: 0.2
+    max-input-chars: 1200
+    max-output-chars: 600
+    # 小助手对话限流（按用户，内存滑动窗口）。
+    # Key 是教务配的、全系统共用一份配额，没有限流时一个脚本就能把额度刷完。
+    chat:
+      per-minute: 12
+      per-day: 150
+
+  # 师生档案维护：新建账号的初始密码。
+  # 只在创建 / 重置密码的那一次响应里返回，不落明文、不可再查。
+  person:
+    default-password: ${PERSON_DEFAULT_PASSWORD:Mentor@2026}
+
 logging:
   level:
     com.graduation.mentor: info

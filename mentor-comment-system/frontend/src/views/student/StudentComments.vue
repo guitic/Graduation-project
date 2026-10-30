@@ -16,26 +16,40 @@
       </el-select>
     </div>
 
-    <div v-loading="loading" class="cards">
-      <div v-for="c in rows" :key="c.id" class="mc-card comment-card" @click="openDetail(c)">
-        <div class="cc-head">
-          <div class="cc-topic">{{ c.topic }}</div>
-          <div class="cc-time mc-mono">{{ fmtDate(c.publishedAt) }}</div>
+    <!--
+      单列阅读流，而不是 3 列卡片网格。
+      学生通常只有 1–5 条点评：3 列网格会让 2/3 屏幕空着，而卡片又把正文截断到 3 行，
+      该给内容的地方给了留白、该留白的地方塞了字。点评是长文本，横向越宽越难读，
+      因此限制在 880px 并居左，日期做锚点。
+    -->
+    <div v-loading="loading" class="read-list">
+      <article v-for="c in rows" :key="c.id" class="mc-card read-card" @click="openDetail(c)">
+        <div class="date-col">
+          <b class="mc-mono">{{ mdOf(c.publishedAt) }}</b>
+          <span>{{ yearOf(c.publishedAt) }}</span>
         </div>
-        <div class="cc-meta">
-          <span class="cc-teacher">
-            <el-icon><User /></el-icon>{{ c.teacherName || '导师' }}
-          </span>
-          <span class="cc-term">{{ c.term }}</span>
+        <div class="rc-body">
+          <h3 class="rc-title">{{ c.topic }}</h3>
+          <div class="rc-meta">
+            <span class="rc-teacher">
+              <el-icon><User /></el-icon>{{ c.teacherName || '导师' }}
+            </span>
+            <span class="rc-term">{{ c.term }}</span>
+          </div>
+          <p class="rc-text">{{ c.content }}</p>
+          <div class="rc-more">
+            查看完整点评<el-icon><ArrowRight /></el-icon>
+          </div>
         </div>
-        <div class="cc-content">{{ c.content }}</div>
-        <div class="cc-foot">
-          <span>查看完整点评</span>
-          <el-icon><ArrowRight /></el-icon>
-        </div>
-      </div>
+      </article>
 
-      <el-empty v-if="!loading && !rows.length" description="暂无已发布的点评" :image-size="96" />
+      <div v-if="!loading && !rows.length" class="mc-card">
+        <EmptyHint
+          icon="Document"
+          title="还没有收到点评"
+          desc="导师提交并经教务审核通过后，点评会发布到这里。可以先看看其他同学常见的问题。"
+        />
+      </div>
     </div>
 
     <div v-if="total > query.size" class="pager">
@@ -78,9 +92,10 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { User, ArrowRight, Calendar, Clock } from '@element-plus/icons-vue'
+import EmptyHint from '../../components/EmptyHint.vue'
 import { pageStudent, studentDetail } from '../../api/comment'
 import { terms as termsApi } from '../../api/person'
-import { fmtTime, fmtDate } from '../../utils/status'
+import { fmtTime } from '../../utils/status'
 
 const loading = ref(false)
 const rows = ref([])
@@ -90,6 +105,14 @@ const terms = ref([])
 
 const detailVisible = ref(false)
 const detail = ref(null)
+
+/** 日期锚点：左边大号 MM-DD，下面年份，正文里不再重复时间 */
+function mdOf(v) {
+  return v ? String(v).replace('T', ' ').slice(5, 10) : '—'
+}
+function yearOf(v) {
+  return v ? String(v).replace('T', ' ').slice(0, 4) : ''
+}
 
 async function load() {
   loading.value = true
@@ -138,83 +161,92 @@ onMounted(() => {
 .term-select {
   width: 160px;
 }
-.cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  min-height: 200px;
-}
-.comment-card {
-  padding: 18px 18px 14px;
-  cursor: pointer;
-  transition: all 0.16s ease;
+.read-list {
   display: flex;
   flex-direction: column;
-  min-height: 190px;
+  gap: 12px;
+  max-width: 880px;
+  min-height: 200px;
 }
-.comment-card:hover {
+.read-card {
+  display: flex;
+  gap: 16px;
+  padding: 18px 20px;
+  cursor: pointer;
+  transition:
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+.read-card:hover {
   box-shadow: var(--mc-shadow-hover);
-  transform: translateY(-2px);
   border-color: #d7e0fb;
 }
-.cc-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 8px;
+.date-col {
+  flex: 0 0 52px;
+  text-align: center;
+  line-height: 1.35;
+  padding-top: 2px;
 }
-.cc-topic {
+.date-col b {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mc-text-2);
+  letter-spacing: 0.2px;
+}
+.date-col span {
+  font-size: 11.5px;
+  color: var(--mc-text-3);
+}
+.rc-body {
+  flex: 1;
+  min-width: 0;
+}
+.rc-title {
   font-size: 15px;
   font-weight: 600;
   color: var(--mc-text-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin: 0 0 6px;
+  line-height: 1.45;
 }
-.cc-time {
-  font-size: 11.5px;
-  color: var(--mc-text-3);
-  flex-shrink: 0;
-}
-.cc-meta {
+.rc-meta {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
-.cc-teacher {
+.rc-teacher {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 12.5px;
   color: var(--mc-text-2);
 }
-.cc-term {
+.rc-term {
   font-size: 11.5px;
   color: var(--mc-text-3);
   background: var(--mc-bg);
   padding: 1px 8px;
-  border-radius: 8px;
+  border-radius: var(--mc-radius-pill);
 }
-.cc-content {
-  font-size: 13px;
-  line-height: 1.75;
+.rc-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.85;
   color: var(--mc-text-2);
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  flex: 1;
 }
-.cc-foot {
-  display: flex;
+.rc-more {
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-  font-size: 12px;
-  color: var(--mc-primary);
+  gap: 2px;
   margin-top: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mc-primary);
 }
 .pager {
   display: flex;
@@ -249,14 +281,13 @@ onMounted(() => {
   white-space: pre-wrap;
   word-break: break-word;
 }
-@media (max-width: 1200px) {
-  .cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
 @media (max-width: 760px) {
-  .cards {
-    grid-template-columns: 1fr;
+  .read-card {
+    padding: 16px;
+    gap: 12px;
+  }
+  .date-col {
+    flex: 0 0 44px;
   }
 }
 </style>

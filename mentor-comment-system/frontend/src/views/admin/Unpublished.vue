@@ -47,8 +47,22 @@
                 >
               </template>
             </el-table-column>
+
+            <!-- 空态只出现一次：接管表格内置的「暂无数据」，且给出下一步 -->
+            <template #empty>
+              <EmptyHint
+                icon="Promotion"
+                title="当前没有待发布的点评"
+                desc="「通过」与「发布」是两个维度：已通过的点评会先停在这里，确认后再推送给学生。"
+              >
+                <el-button type="primary" plain size="small" @click="goAudit">
+                  去审核队列{{ auth.pendingCount ? `处理 ${auth.pendingCount} 条` : '' }}
+                </el-button>
+                <el-button size="small" @click="reload">刷新</el-button>
+              </EmptyHint>
+            </template>
           </el-table>
-          <div class="pager">
+          <div v-if="unpubTotal > 0" class="pager">
             <el-pagination
               v-model:current-page="unpubQuery.page"
               v-model:page-size="unpubQuery.size"
@@ -58,11 +72,6 @@
               @current-change="loadUnpub"
             />
           </div>
-          <el-empty
-            v-if="!unpubLoading && !unpubRows.length"
-            description="暂无待发布点评"
-            :image-size="72"
-          />
         </el-tab-pane>
 
         <!-- 已发布 -->
@@ -96,8 +105,19 @@
                 >
               </template>
             </el-table-column>
+
+            <template #empty>
+              <EmptyHint
+                icon="Finished"
+                title="还没有已发布的点评"
+                desc="点评在「待发布」确认发布后会出现在这里；已发布的点评可随时撤回，撤回后学生立即不可见。"
+              >
+                <el-button size="small" @click="tab = 'unpublished'">查看待发布</el-button>
+                <el-button size="small" @click="reload">刷新</el-button>
+              </EmptyHint>
+            </template>
           </el-table>
-          <div class="pager">
+          <div v-if="pubTotal > 0" class="pager">
             <el-pagination
               v-model:current-page="pubQuery.page"
               v-model:page-size="pubQuery.size"
@@ -107,11 +127,6 @@
               @current-change="loadPub"
             />
           </div>
-          <el-empty
-            v-if="!pubLoading && !pubRows.length"
-            description="暂无已发布点评"
-            :image-size="72"
-          />
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -152,8 +167,10 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
+import EmptyHint from '../../components/EmptyHint.vue'
 import StatusTag from '../../components/StatusTag.vue'
 import { unpublishedPage, publishedPage, publish, unpublish } from '../../api/audit'
 import { fmtTime } from '../../utils/status'
@@ -161,6 +178,7 @@ import { useAuthStore } from '../../store/auth'
 import { limits, ensureLimits } from '../../utils/limits'
 
 const auth = useAuthStore()
+const router = useRouter()
 
 const tab = ref('unpublished')
 
@@ -244,6 +262,11 @@ function reload() {
 function onTabChange() {
   if (tab.value === 'published') loadPub()
   else loadUnpub()
+}
+
+/** 空态里的出路：待发布为空通常意味着「审核队列还没处理」 */
+function goAudit() {
+  router.push('/audit')
 }
 
 function openPublish(row) {

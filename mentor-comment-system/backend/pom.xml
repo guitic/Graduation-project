@@ -23,6 +23,7 @@
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
         <sa-token.version>1.37.0</sa-token.version>
         <hanlp.version>portable-1.8.4</hanlp.version>
+        <spring-ai.version>1.0.0</spring-ai.version>
     </properties>
 
     <dependencies>
@@ -66,6 +67,35 @@
             <groupId>com.hankcs</groupId>
             <artifactId>hanlp</artifactId>
             <version>${hanlp.version}</version>
+        </dependency>
+
+        <!--
+            大模型摘要：Spring AI（仅核心模块，不引 starter）。
+
+            为什么不引 spring-ai-starter-model-openai：
+            1) 该 starter 的自动配置绑定 Spring Boot 3.4.x，本项目是 3.2.5，启动会因
+               AutoConfiguration.imports 里的类找不到而失败；
+            2) 自动配置在「无 api-key」时直接抛异常，等于把"没配 Key"变成"服务起不来"。
+               本项目的红线是：AI 是可选增强，断网 / 无 Key / 模型超时都必须能正常启动并
+               自动回落到规则实现（见 service/ai/LlmSummarySuggester 的懒初始化）。
+
+            webflux 只用于提供 WebClient.Builder —— OpenAiApi.Builder.build() 强制要求它非空，
+            即使只走同步 RestClient 调用。项目仍以 Servlet（spring-boot-starter-web）运行。
+        -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
+        <!-- ChatClient（高层 fluent API）在独立模块里，spring-ai-openai 不传递依赖它 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-client-chat</artifactId>
+            <version>${spring-ai.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
         <!-- 密码哈希：BCrypt（仅取 spring-security-crypto，不引入整套 Security 过滤器链） -->

@@ -497,6 +497,7 @@ public class CommentService {
         r.setEverWithdrawn(c.getWithdrawnAt() != null);
         r.setSubmitAt(c.getSubmitAt());
         r.setCreatedAt(c.getCreatedAt());
+        r.setUpdatedAt(c.getUpdatedAt());
         r.setVersion(c.getVersion());
 
         CommentSentiment se = ctx.sentiments.get(c.getId());

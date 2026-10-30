@@ -52,15 +52,24 @@
           </el-button>
         </el-form>
 
-        <!-- 演示区仅在 demo 环境下发账号时出现；生产环境接口返回空列表，这里整块隐藏 -->
+        <!-- 演示区仅在 demo 环境下发账号时出现；生产环境接口返回空列表，这里整块隐藏。
+             默认折叠：4 张账号卡常驻会占掉登录框一半高度，而答辩时只需要点一次。 -->
         <div v-if="accounts.length" class="demo-block">
-          <div class="demo-head">
-            <span>演示账号</span>
+          <button
+            type="button"
+            class="demo-toggle"
+            :class="{ open: demoOpen }"
+            @click="demoOpen = !demoOpen"
+          >
+            <el-icon><User /></el-icon>
+            <span>使用演示账号</span>
             <span class="demo-pwd"
-              >统一密码：<b>{{ demoPassword }}</b></span
+              >统一密码 <b>{{ demoPassword }}</b></span
             >
-          </div>
-          <div class="chips">
+            <el-icon class="caret"><ArrowDown /></el-icon>
+          </button>
+
+          <div v-show="demoOpen" class="chips">
             <button
               v-for="a in accounts"
               :key="a.username"
@@ -76,6 +85,8 @@
           </div>
         </div>
       </div>
+
+      <div class="panel-foot">教学演示版本 v1.0 · 页面数据均为模拟数据</div>
     </section>
   </div>
 </template>
@@ -84,7 +95,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
+import { User, Lock, ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '../store/auth'
 import { demoAccounts } from '../api/auth'
 
@@ -101,6 +112,8 @@ const rules = {
 const loading = ref(false)
 const accounts = ref([])
 const demoPassword = ref('')
+/** 演示账号默认收起：正式环境根本不会返回账号，demo 环境点一次就展开 */
+const demoOpen = ref(false)
 
 onMounted(async () => {
   try {
@@ -228,10 +241,21 @@ async function onSubmit() {
 
 /* 表单区 */
 .panel {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px;
+}
+/* 页脚把右侧的重心压到底部，避免「左边满高渐变、右边一片空白」的失衡 */
+.panel-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--mc-text-3);
 }
 .form-box {
   width: 100%;
@@ -254,26 +278,59 @@ async function onSubmit() {
   margin-top: 4px;
 }
 .demo-block {
-  margin-top: 30px;
-  padding-top: 20px;
+  margin-top: 26px;
+  padding-top: 18px;
   border-top: 1px dashed var(--mc-border);
 }
-.demo-head {
+.demo-toggle {
+  width: 100%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  font-size: 12.5px;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--mc-border);
+  background: #fafbfc;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--mc-text-2);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+.demo-toggle:hover {
+  border-color: #b9c8f7;
+  background: #f7f9ff;
+  color: var(--mc-primary);
+}
+.demo-toggle.open {
+  border-style: solid;
+  background: #fff;
+  color: var(--mc-text-1);
+}
+.demo-pwd {
+  margin-left: auto;
+  font-size: 12px;
   color: var(--mc-text-3);
-  margin-bottom: 12px;
 }
 .demo-pwd b {
-  color: var(--mc-text-2);
+  color: var(--mc-text-1);
   font-variant-numeric: tabular-nums;
+}
+.demo-toggle .caret {
+  color: var(--mc-text-3);
+  transition: transform 0.2s ease;
+}
+.demo-toggle.open .caret {
+  transform: rotate(180deg);
 }
 .chips {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  margin-top: 10px;
 }
 .chip {
   text-align: left;

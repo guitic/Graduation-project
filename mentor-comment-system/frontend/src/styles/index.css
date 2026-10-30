@@ -13,10 +13,14 @@
   --mc-border: #e5e6eb;
   --mc-border-weak: #f0f1f4;
 
-  --mc-text-1: #1f2329;
-  --mc-text-2: #646a73;
-  --mc-text-3: #8f959e;
-  --mc-text-4: #b4b8bf;
+  /* 灰度：3 级，全部达 WCAG AA（12px 文字 ≥ 4.5:1）。
+     原来 4 级里的 text-3(#8f959e, 3.0:1) 与 text-4(#b4b8bf, 2.0:1) 承载了
+     口径说明、KPI 注释这类 12px 文字，对比度不达标；合并为一级，
+     text-4 保留变量名做别名，避免全量替换引入回归。 */
+  --mc-text-1: #1f2329; /* 主文本 15.8:1 */
+  --mc-text-2: #646a73; /* 次文本  5.5:1 */
+  --mc-text-3: #6b7280; /* 辅助文本 5.0:1 */
+  --mc-text-4: var(--mc-text-3);
 
   /* 状态色（6 态 + 撤回） */
   --st-draft-fg: #6b7280;
@@ -41,8 +45,13 @@
 
   --mc-radius: 10px;
   --mc-radius-sm: 6px;
+  --mc-radius-pill: 999px;
   --mc-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.05);
   --mc-shadow-hover: 0 2px 6px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08);
+
+  /* 键盘焦点：Element Plus 自带的 focus 在深色侧栏/浅色卡片上都不明显，
+     统一用一层柔光环，保证「Tab 走到哪」始终可见 */
+  --mc-focus: 0 0 0 3px rgba(43, 92, 230, 0.2);
 
   --el-color-primary: #2b5ce6;
   --el-border-radius-base: 8px;
@@ -70,6 +79,29 @@ body {
 a {
   color: var(--mc-primary);
   text-decoration: none;
+}
+
+/* 键盘焦点：仅键盘导航时出现，鼠标点击不显示 */
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible {
+  outline: none;
+  box-shadow: var(--mc-focus);
+}
+
+/* 表格内的「主题」入口：默认是正文色，hover 才变主色。
+   整列上蓝会让每一行都像链接，抢走操作列的注意力。 */
+.mc-link {
+  color: var(--mc-text-1);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.mc-link:hover {
+  color: var(--mc-primary);
+  border-bottom-color: currentColor;
 }
 
 /* 通用卡片 */
@@ -125,6 +157,8 @@ a {
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
+  /* 预审分、样本量这类数字要等宽，否则切换行时胶囊会左右抖 */
+  font-variant-numeric: tabular-nums;
 }
 .mc-pill .dot {
   width: 6px;
@@ -181,6 +215,42 @@ a {
   font-size: 12.5px;
   max-width: 300px;
   line-height: 1.7;
+}
+/* 空态必须给出下一步动作，否则用户走到死路 */
+.mc-gate .gate-actions {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 抽屉 / 弹窗里的紧凑空态：同样的语言，更小的体量 */
+.mc-gate.compact {
+  min-height: 132px;
+  padding: 14px;
+  gap: 5px;
+}
+.mc-gate.compact .gate-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+.mc-gate.compact .gate-title {
+  font-size: 13px;
+}
+.mc-gate.compact .gate-desc {
+  font-size: 12px;
+  max-width: 280px;
+}
+
+/* 表格整行可点：指针 + hover 背景，让「这一行是个入口」看得出来 */
+.el-table .row-clickable {
+  cursor: pointer;
+}
+
+/* 数字等宽：表格里的条数、学号、比例切换行时不会左右抖 */
+.el-table {
+  font-variant-numeric: tabular-nums;
 }
 
 /* 滚动条 */

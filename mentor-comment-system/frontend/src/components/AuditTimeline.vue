@@ -25,11 +25,18 @@
         </el-collapse>
       </el-timeline-item>
     </el-timeline>
-    <el-empty v-else description="暂无审核记录" :image-size="64" />
+    <EmptyHint
+      v-else
+      compact
+      icon="ChatLineSquare"
+      title="暂无审核记录"
+      desc="导师提交后，每一次通过 / 退回 / 驳回都会在这里留下带意见的事件流"
+    />
   </div>
 </template>
 
 <script setup>
+import EmptyHint from './EmptyHint.vue'
 import { actionMeta, fmtTime } from '../utils/status'
 
 defineProps({

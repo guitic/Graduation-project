@@ -36,10 +36,12 @@
           </div>
           <div class="di-content">{{ c.content }}</div>
         </div>
-        <el-empty
+        <EmptyHint
           v-if="!loading && !drill.comments.length"
-          description="暂无明细"
-          :image-size="72"
+          compact
+          icon="Document"
+          title="该分组暂无明细"
+          desc="样本量已达标但明细为空，通常是因为筛选条件过窄，换个月份或词语再试"
         />
       </div>
     </div>
@@ -48,6 +50,7 @@
 
 <script setup>
 import GateEmpty from '../GateEmpty.vue'
+import EmptyHint from '../EmptyHint.vue'
 import { fmtDate } from '../../utils/status'
 import { limits } from '../../utils/limits'
 

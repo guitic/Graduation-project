@@ -44,8 +44,17 @@
 
     <!-- 表格 -->
     <div v-loading="loading" class="mc-card table-card">
-      <el-table :data="rows" stripe style="width: 100%" row-key="id">
-        <el-table-column label="学生" min-width="130">
+      <!-- 整行可点进详情：列表页最高频的动作是「看看这条写了什么」，
+           只让「查看」两个字可点等于逼用户瞄准 -->
+      <el-table
+        :data="rows"
+        stripe
+        style="width: 100%"
+        row-key="id"
+        row-class-name="row-clickable"
+        @row-click="openDetail"
+      >
+        <el-table-column label="学生" min-width="124">
           <template #default="{ row }">
             <div class="stu">
               <span class="stu-name">{{ row.studentName }}</span>
@@ -53,40 +62,60 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="clazzName" label="班级" width="120" />
+        <el-table-column prop="clazzName" label="班级" width="100" />
         <el-table-column prop="topic" label="指导主题" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="term" label="学期" width="130" />
-        <el-table-column label="状态" width="120">
+        <el-table-column prop="term" label="学期" width="112" />
+        <el-table-column label="状态" width="108">
           <template #default="{ row }"><StatusTag :row="row" /></template>
         </el-table-column>
-        <el-table-column label="情感" width="110">
+        <el-table-column label="情感" width="104">
           <template #default="{ row }">
             <SentimentTag :label="row.sentimentLabel" :low-confidence="row.lowConfidence" />
           </template>
         </el-table-column>
-        <el-table-column label="更新时间" width="160">
+        <el-table-column label="更新" width="108">
           <template #default="{ row }">
-            <span class="mc-mono time">{{ fmtTime(row.createdAt) }}</span>
+            <span class="mc-mono time">{{ fmtShort(row.updatedAt || row.createdAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right">
+        <!-- 查看 / 编辑 / 提交 常驻；删除是破坏性低频操作，收进「更多」，
+             避免 4 个文字按钮把列撑到 196px 后被裁掉 -->
+        <el-table-column label="操作" width="176" fixed="right">
           <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="openDetail(row)">查看</el-button>
-            <el-button v-if="editable(row)" text type="primary" size="small" @click="openEdit(row)">
-              编辑
-            </el-button>
-            <el-button v-if="editable(row)" text type="success" size="small" @click="doSubmit(row)">
-              提交
-            </el-button>
-            <el-button
-              v-if="row.status === 'DRAFT'"
-              text
-              type="danger"
-              size="small"
-              @click="doDelete(row)"
-            >
-              删除
-            </el-button>
+            <!-- @click.stop：整行可点后，按钮点击不能再冒泡成一次 openDetail -->
+            <div class="op-cell" @click.stop>
+              <el-button text type="primary" size="small" @click="openDetail(row)">查看</el-button>
+              <el-button
+                v-if="editable(row)"
+                text
+                type="primary"
+                size="small"
+                @click="openEdit(row)"
+              >
+                编辑
+              </el-button>
+              <el-button
+                v-if="editable(row)"
+                text
+                type="success"
+                size="small"
+                @click="doSubmit(row)"
+              >
+                提交
+              </el-button>
+              <el-dropdown
+                v-if="row.status === 'DRAFT'"
+                trigger="click"
+                @command="(c) => c === 'delete' && doDelete(row)"
+              >
+                <el-button size="small" :icon="MoreFilled" class="more-btn" />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="delete">删除草稿</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -160,6 +189,40 @@
             placeholder="请填写对该学生的学业点评（20~2000 字）"
           />
         </el-form-item>
+
+        <!-- 摘要建议：只读辅助，不写入点评正文，也不参与提交 -->
+        <div class="ai-bar">
+          <el-button size="small" :icon="MagicStick" :loading="aiLoading" @click="genSuggestion">
+            {{ aiStatus.llmAvailable ? 'AI 生成摘要建议' : '生成摘要建议' }}
+          </el-button>
+          <span class="ai-hint">
+            {{
+              aiStatus.llmAvailable
+                ? '由大模型根据正文生成，仅供参考，不会自动写入'
+                : '当前未启用大模型，使用规则生成（结果可解释、可复现）'
+            }}
+          </span>
+        </div>
+
+        <div v-if="aiResult" class="ai-card">
+          <div class="ai-head">
+            <span class="ai-src" :class="aiResult.source === 'LLM' ? 'is-llm' : 'is-rule'">
+              {{ aiResult.source === 'LLM' ? '模型生成' : '规则生成' }}
+            </span>
+            <span class="ai-meta">
+              {{ aiResult.model || 'lexicon-v1' }} · {{ aiResult.latencyMs }}ms
+            </span>
+            <div class="ai-spacer" />
+            <el-button text size="small" @click="aiResult = null">收起</el-button>
+          </div>
+          <div class="ai-summary">{{ aiResult.summary }}</div>
+          <ul class="ai-tips">
+            <li v-for="(t, i) in aiResult.suggestions" :key="i">{{ t }}</li>
+          </ul>
+          <div v-if="aiResult.fallbackReason" class="ai-fallback">
+            已降级为规则生成：{{ aiResult.fallbackReason }}
+          </div>
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
@@ -207,13 +270,14 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, ChatDotSquare } from '@element-plus/icons-vue'
+import { Plus, Search, ChatDotSquare, MagicStick, MoreFilled } from '@element-plus/icons-vue'
 import StatusTag from '../../components/StatusTag.vue'
 import SentimentTag from '../../components/SentimentTag.vue'
 import AuditTimeline from '../../components/AuditTimeline.vue'
 import { pageTeacher, detail, save, update, submit, remove } from '../../api/comment'
 import { myStudents, terms as termsApi } from '../../api/person'
-import { fmtTime } from '../../utils/status'
+import { summary as aiSummary, status as aiStatusApi } from '../../api/ai'
+import { fmtTime, fmtShort } from '../../utils/status'
 
 const statusOptions = [
   { label: '草稿', value: 'DRAFT' },
@@ -249,6 +313,36 @@ const rules = {
 const detailVisible = ref(false)
 const current = ref(null)
 const audits = ref([])
+
+// ---------------- 摘要建议 ----------------
+const aiLoading = ref(false)
+const aiResult = ref(null)
+const aiStatus = ref({ llmAvailable: false })
+
+async function loadAiStatus() {
+  try {
+    aiStatus.value = await aiStatusApi()
+  } catch (e) {
+    // 状态接口失败不影响写点评，按"未启用模型"处理
+    aiStatus.value = { llmAvailable: false }
+  }
+}
+
+async function genSuggestion() {
+  const text = (form.content || '').trim()
+  if (text.length < 10) {
+    ElMessage.warning('先写点评内容，至少 10 个字再生成摘要')
+    return
+  }
+  aiLoading.value = true
+  try {
+    aiResult.value = await aiSummary({ content: text, topic: form.topic })
+  } catch (e) {
+    /* 已提示 */
+  } finally {
+    aiLoading.value = false
+  }
+}
 
 function editable(row) {
   return row.status === 'DRAFT' || row.status === 'RETURNED'
@@ -292,6 +386,7 @@ function resetForm() {
 function openCreate() {
   editingId.value = null
   resetForm()
+  aiResult.value = null
   formVisible.value = true
 }
 
@@ -301,6 +396,7 @@ function openEdit(row) {
   form.term = row.term
   form.topic = row.topic
   form.content = row.content
+  aiResult.value = null
   formVisible.value = true
 }
 
@@ -382,6 +478,7 @@ async function openDetail(row) {
 
 onMounted(() => {
   loadOptions()
+  loadAiStatus()
   load()
 })
 </script>
@@ -398,11 +495,86 @@ onMounted(() => {
 .f-item {
   width: 150px;
 }
+
+/* ---------------- 摘要建议 ---------------- */
+.ai-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -8px 0 14px;
+}
+.ai-hint {
+  font-size: 12px;
+  color: var(--mc-text-3);
+  line-height: 1.5;
+}
+.ai-card {
+  border: 1px solid var(--mc-border-weak);
+  border-radius: 10px;
+  background: var(--mc-bg);
+  padding: 12px 14px;
+  margin-bottom: 6px;
+}
+.ai-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ai-src {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+.ai-src.is-llm {
+  color: #2b5ce6;
+  background: rgba(43, 92, 230, 0.1);
+}
+.ai-src.is-rule {
+  color: #b45309;
+  background: rgba(180, 83, 9, 0.1);
+}
+.ai-meta {
+  font-size: 11.5px;
+  color: var(--mc-text-3);
+  font-family: 'SF Mono', Consolas, monospace;
+}
+.ai-spacer {
+  flex: 1;
+}
+.ai-summary {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--mc-text-1);
+  margin-bottom: 6px;
+}
+.ai-tips {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--mc-text-2);
+}
+.ai-fallback {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #b45309;
+}
 .f-search {
   width: 240px;
 }
 .table-card {
   padding: 6px 8px 16px;
+}
+/* 操作列里 3 个文字按钮默认左右各 8px 内边距 + 12px 间距，
+   176px 装不下会折行；收紧到 6px / 8px 后单行放得下，行高恢复一致 */
+.table-card :deep(.el-button.is-text) {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.table-card :deep(.el-button + .el-button) {
+  margin-left: 8px;
 }
 .pager {
   display: flex;
@@ -425,6 +597,15 @@ onMounted(() => {
 .time {
   font-size: 12.5px;
   color: var(--mc-text-2);
+}
+.more-btn {
+  margin-left: 4px;
+  padding: 5px 6px;
+}
+.op-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .form-row {

@@ -152,4 +152,23 @@ public class StatDtos {
         /** 统计截至：已发布点评中最大的 published_at。由数据自证窗口，不靠人记 */
         private String asOf;
     }
+
+    /**
+     * 导师端个人画像。
+     *
+     * <p><b>刻意不含 {@link AuditStat}</b>：审核队列长度、退回率是教务的管理指标， 给导师看等于把全院的流程压力摊到个人身上，且这些数字与"我的指导质量"无关。
+     * 同理不含"待发布数"——那是教务的待办。
+     *
+     * <p>KPI 也重新算：{@link Dashboard#getKpi()} 里的草稿/待审核是**全量**口径， 直接复用会让导师看到全院的草稿数，属于越权披露。
+     */
+    @Data
+    public static class MyDashboard {
+        private Kpi kpi;
+        private SentimentDist sentiment;
+        private Trend trend;
+        private WordCloud wordCloud;
+        private String methodVersion;
+        private String scopeNote;
+        private String asOf;
+    }
 }
