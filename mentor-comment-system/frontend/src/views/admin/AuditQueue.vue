@@ -1,7 +1,7 @@
 <template>
   <div class="mc-page">
-    <div class="mc-page-head">
-      <div>
+    <div class="mc-page-head" :class="{ 'head-compact': embedded }">
+      <div v-if="!embedded">
         <div class="mc-page-title">审核队列</div>
         <div class="mc-page-sub">
           {{
@@ -160,13 +160,32 @@
       <el-input
         v-model="opinion"
         type="textarea"
-        :rows="5"
+        :rows="4"
         :maxlength="500"
-        show-word-limit
         :placeholder="act.placeholder"
       />
-      <div class="act-count" :class="{ ok: opinion.trim().length >= act.minLen }">
-        已输入 <b>{{ opinion.trim().length }}</b> 字 · 至少 <b>{{ act.minLen }}</b> 字
+
+      <!--
+        常用理由：不想打字时两次点击就能提交。
+        选中是「追加」而不是「覆盖」——老师先写两句自己的判断、再补一条标准理由，是很常见的用法。
+      -->
+      <div class="quick-row">
+        <el-select
+          v-model="quickPick"
+          class="quick-select"
+          :placeholder="reasonGroups.length ? '常用理由：点选即填入输入框' : '暂无常用理由'"
+          :disabled="!reasonGroups.length"
+          @change="applyReason"
+        >
+          <el-option-group v-for="g in reasonGroups" :key="g.kind" :label="g.label">
+            <el-option v-for="r in g.items" :key="r.text" :label="r.text" :value="r.text" />
+          </el-option-group>
+        </el-select>
+        <el-button v-if="opinion" text size="small" @click="opinion = ''">清空</el-button>
+      </div>
+
+      <div class="act-count">
+        已输入 <b>{{ opinion.trim().length }}</b> 字 · 不限字数，可点上方理由一键填入
       </div>
       <template #footer>
         <el-button @click="actionVisible = false">取消</el-button>
@@ -327,9 +346,16 @@ import { commentSentiment } from '../../api/report'
 import { terms as termsApi, teachers as teachersApi } from '../../api/person'
 import { useAuthStore } from '../../store/auth'
 import { fmtShort, precheckLevelLabel } from '../../utils/status'
-import { limits, ensureLimits } from '../../utils/limits'
+import { ensureLimits } from '../../utils/limits'
+import { AUDIT_REASONS, reasonGroupsOf, appendReason } from '../../utils/auditReasons'
 
 const auth = useAuthStore()
+
+/**
+ * embedded = 被「审核与发布」页当子视图用：只隐藏自己的页面头（标题与说明），
+ * 保留刷新按钮，标题由父页面的二级 tab 承担。
+ */
+defineProps({ embedded: { type: Boolean, default: false } })
 
 const loading = ref(false)
 const rows = ref([])
@@ -338,50 +364,56 @@ const query = reactive({ page: 1, size: 10, term: '', teacherId: null, keyword: 
 const terms = ref([])
 const teachers = ref([])
 
-const ACTIONS = computed(() => {
-  const o = limits.opinion
-  return {
-    approvePublish: {
-      title: '通过并发布',
-      minLen: o.approvePublish,
-      btnType: 'success',
-      tone: 'ok',
-      tip: '通过并发布后，学生立即可见，并纳入情感分析与词频统计。',
-      placeholder: `请填写通过理由（≥${o.approvePublish} 字），如：内容完整、表述规范，同意发布。`
-    },
-    approveOnly: {
-      title: '仅通过（待发布）',
-      minLen: o.approveOnly,
-      btnType: 'primary',
-      tone: 'info',
-      tip: '仅通过后进入「待发布」，学生暂不可见、不纳入统计，可在待发布列表再次发布。',
-      placeholder: `请填写仅通过、暂不发布的理由（≥${o.approveOnly} 字），如：内容需进一步核实，先通过但暂不推送学生。`
-    },
-    return: {
-      title: '退回修改',
-      minLen: o.return,
-      btnType: 'warning',
-      tone: 'warn',
-      tip: '退回后导师可修改并重新提交，进入新一轮审核。',
-      placeholder: `请填写退回原因与修改建议（≥${o.return} 字），如：请补充具体课程与改进建议，重新提交。`
-    },
-    reject: {
-      title: '驳回',
-      minLen: o.reject,
-      btnType: 'danger',
-      tone: 'danger',
-      tip: '驳回为终态，不发布、不纳入统计。',
-      placeholder: `请填写驳回理由（≥${o.reject} 字），如：内容与学业指导无关或存在不当表述，经复核不予通过。`
-    }
+const ACTIONS = {
+  approvePublish: {
+    title: '通过并发布',
+    btnType: 'success',
+    tone: 'ok',
+    tip: '通过并发布后，学生立即可见，并纳入情感分析与词频统计。',
+    placeholder: '填写通过理由，或从下方常用理由中点一条',
+    reasons: AUDIT_REASONS.approvePublish
+  },
+  approveOnly: {
+    title: '仅通过（待发布）',
+    btnType: 'primary',
+    tone: 'info',
+    tip: '仅通过后进入「待发布」，学生暂不可见、不纳入统计，可在待发布列表再次发布。',
+    placeholder: '填写仅通过、暂不发布的理由，或从下方常用理由中点一条',
+    reasons: AUDIT_REASONS.approveOnly
+  },
+  return: {
+    title: '退回修改',
+    btnType: 'warning',
+    tone: 'warn',
+    tip: '退回后导师可修改并重新提交，进入新一轮审核。',
+    placeholder: '填写退回原因与修改建议，或从下方常用理由中点一条',
+    reasons: AUDIT_REASONS.return
+  },
+  reject: {
+    title: '驳回',
+    btnType: 'danger',
+    tone: 'danger',
+    tip: '驳回为终态，不发布、不纳入统计。',
+    placeholder: '填写驳回理由，或从下方常用理由中点一条',
+    reasons: AUDIT_REASONS.reject
   }
-})
+}
 
 const actionVisible = ref(false)
 const acting = ref(false)
 const target = ref(null)
 const actionKey = ref('approvePublish')
 const opinion = ref('')
-const act = computed(() => ACTIONS.value[actionKey.value])
+/** 常用理由下拉的选中值：用完即清空，让它保持"动作列表"而不是"已选状态" */
+const quickPick = ref('')
+const act = computed(() => ACTIONS[actionKey.value])
+const reasonGroups = computed(() => reasonGroupsOf(actionKey.value))
+
+function applyReason(text) {
+  if (!text) return
+  opinion.value = appendReason(opinion.value, text)
+  quickPick.value = ''
+}
 
 const detailVisible = ref(false)
 const current = ref(null)
@@ -529,13 +561,14 @@ function openAction(row, key) {
   target.value = row
   actionKey.value = key
   opinion.value = ''
+  quickPick.value = ''
   actionVisible.value = true
 }
 
 async function confirmAction() {
-  const len = opinion.value.trim().length
-  if (len < act.value.minLen) {
-    ElMessage.warning(`审核意见至少 ${act.value.minLen} 字`)
+  // 不限字数，但意见不能是空的：留痕要能解释「为什么通过/为什么驳回」
+  if (!opinion.value.trim()) {
+    ElMessage.warning('请填写审核意见，或从常用理由中选择一条')
     return
   }
   acting.value = true
@@ -648,7 +681,7 @@ onMounted(() => {
 }
 
 .act-target {
-  background: #fafbfc;
+  background: var(--mc-surface-2);
   border: 1px solid var(--mc-border-weak);
   border-radius: 10px;
   padding: 12px 14px;
@@ -674,20 +707,31 @@ onMounted(() => {
   margin-top: 6px;
 }
 .at-tip.ok {
-  background: #e6f7ee;
-  color: #12805c;
+  background: var(--st-published-bg);
+  color: var(--st-published-fg);
 }
 .at-tip.info {
-  background: #e0f2fe;
-  color: #0e7490;
+  background: var(--st-approved-bg);
+  color: var(--st-approved-fg);
 }
 .at-tip.warn {
-  background: #fef3e2;
-  color: #b45309;
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
 }
 .at-tip.danger {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+/* 常用理由：与输入框同宽，避免在窄弹窗里被挤成两行 */
+.quick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.quick-select {
+  flex: 1;
+  min-width: 0;
 }
 .act-count {
   margin-top: 8px;
@@ -697,9 +741,6 @@ onMounted(() => {
 }
 .act-count b {
   color: var(--mc-text-1);
-}
-.act-count.ok b {
-  color: #12805c;
 }
 
 .detail-head {
@@ -725,7 +766,7 @@ onMounted(() => {
   color: var(--mc-text-1);
   white-space: pre-wrap;
   word-break: break-word;
-  background: #fcfcfd;
+  background: var(--mc-surface-2);
   border: 1px solid var(--mc-border-weak);
   border-radius: 10px;
   padding: 14px 16px;
@@ -733,8 +774,8 @@ onMounted(() => {
 }
 
 .analysis-box {
-  border: 1px solid #e0e7ff;
-  background: #f8faff;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-primary-weak);
   border-radius: 10px;
   padding: 12px 14px;
 }
@@ -775,16 +816,16 @@ onMounted(() => {
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 6px;
-  background: #eef2fe;
-  color: #2b5ce6;
+  background: var(--mc-primary-weak);
+  color: var(--mc-primary);
 }
 .hit.positive {
-  background: #e6f7ee;
-  color: #12805c;
+  background: var(--st-published-bg);
+  color: var(--st-published-fg);
 }
 .hit.negative {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
 }
 .hit em {
   font-style: normal;
@@ -799,7 +840,7 @@ onMounted(() => {
   font-size: 11.5px;
   color: var(--mc-text-3);
   line-height: 1.6;
-  border-top: 1px dashed #dbe4ff;
+  border-top: 1px dashed var(--mc-border);
   padding-top: 8px;
 }
 .d-section-title {
@@ -810,8 +851,8 @@ onMounted(() => {
 
 /* AI 预审建议卡：与"情感分析依据"（靛蓝）区分，这里用中性灰底，避免暗示两者同权重 */
 .precheck-box {
-  border: 1px solid #e6e9f0;
-  background: #f9fafc;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface-2);
   border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 14px;
@@ -863,16 +904,16 @@ onMounted(() => {
   font-size: 11px;
   line-height: 18px;
   border-radius: 4px;
-  background: #eef2fe;
+  background: var(--mc-primary-weak);
   color: var(--mc-primary);
 }
 .pb-issues li.warn .pi-level {
-  background: #fef3e2;
-  color: #b45309;
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
 }
 .pb-issues li.blocker .pi-level {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
 }
 .pi-msg {
   flex: 1;
@@ -880,11 +921,11 @@ onMounted(() => {
 .pb-clean {
   margin-bottom: 10px;
   font-size: 12.5px;
-  color: #12805c;
+  color: var(--st-published-fg);
 }
 .pb-draft {
   padding-top: 10px;
-  border-top: 1px dashed #e3e8f0;
+  border-top: 1px dashed var(--mc-border);
 }
 .pbd-head {
   display: flex;
@@ -900,17 +941,17 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.8;
   color: var(--mc-text-1);
-  background: #fff;
+  background: var(--mc-card);
   border: 1px solid var(--mc-border-weak);
   border-radius: 8px;
 }
 /* 预审问题在原文中的定位高亮（v-html 内容需要 :deep 才命中） */
 .d-content :deep(.ai-mark) {
   padding: 0 1px;
-  background: #fff3bf;
+  background: var(--mc-highlight);
   border-radius: 3px;
 }
 .d-content :deep(.ai-mark.blocker) {
-  background: #ffd8d8;
+  background: var(--mc-highlight-danger);
 }
 </style>

@@ -77,7 +77,7 @@ defineProps({
   font-size: 13px;
   line-height: 1.7;
   color: var(--mc-text-2);
-  background: #fafbfc;
+  background: var(--mc-surface-2);
   border: 1px solid var(--mc-border-weak);
   border-radius: 8px;
   padding: 9px 12px;
@@ -105,7 +105,7 @@ defineProps({
   line-height: 1.7;
   color: var(--mc-text-3);
   white-space: pre-wrap;
-  background: #f7f8fa;
+  background: var(--mc-surface-3);
   border-radius: 8px;
   padding: 10px 12px;
 }

@@ -13,6 +13,7 @@ import com.graduation.mentor.dto.CommentDtos;
 import com.graduation.mentor.entity.Clazz;
 import com.graduation.mentor.entity.Comment;
 import com.graduation.mentor.entity.CommentAudit;
+import com.graduation.mentor.entity.CommentFeedback;
 import com.graduation.mentor.entity.CommentSentiment;
 import com.graduation.mentor.entity.Major;
 import com.graduation.mentor.entity.Student;
@@ -20,6 +21,7 @@ import com.graduation.mentor.entity.Teacher;
 import com.graduation.mentor.entity.TeacherStudent;
 import com.graduation.mentor.mapper.ClazzMapper;
 import com.graduation.mentor.mapper.CommentAuditMapper;
+import com.graduation.mentor.mapper.CommentFeedbackMapper;
 import com.graduation.mentor.mapper.CommentMapper;
 import com.graduation.mentor.mapper.CommentSentimentMapper;
 import com.graduation.mentor.mapper.MajorMapper;
@@ -33,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +58,7 @@ public class CommentService {
     private final CommentMapper commentMapper;
     private final CommentAuditMapper auditMapper;
     private final CommentSentimentMapper sentimentMapper;
+    private final CommentFeedbackMapper feedbackMapper;
     private final StudentMapper studentMapper;
     private final TeacherMapper teacherMapper;
     private final ClazzMapper clazzMapper;
@@ -173,7 +177,33 @@ public class CommentService {
 
     private PageResult<CommentDtos.Row> page(LambdaQueryWrapper<Comment> w, CommentDtos.Query q) {
         Page<Comment> p = commentMapper.selectPage(new Page<>(q.getPage(), q.getSize()), w);
-        return PageResult.of(toRows(p.getRecords()), p.getTotal(), q.getPage(), q.getSize());
+        List<CommentDtos.Row> rows = toRows(p.getRecords());
+        fillFeedback(rows);
+        return PageResult.of(rows, p.getTotal(), q.getPage(), q.getSize());
+    }
+
+    /**
+     * 批量填充「是否已反馈」。
+     *
+     * <p>一页 20 条不能打 20 次数据库（审查报告 P1-1 的 N+1 教训）。 未反馈的行保持 null，前端据此显示「待反馈」，与「帮助不大(0)」区分开。
+     */
+    private void fillFeedback(List<CommentDtos.Row> rows) {
+        if (rows.isEmpty()) {
+            return;
+        }
+        List<Long> ids = rows.stream().map(CommentDtos.Row::getId).toList();
+        Map<Long, Integer> helpfulMap =
+                feedbackMapper
+                        .selectList(
+                                new LambdaQueryWrapper<CommentFeedback>()
+                                        .in(CommentFeedback::getCommentId, ids))
+                        .stream()
+                        .collect(
+                                Collectors.toMap(
+                                        CommentFeedback::getCommentId,
+                                        CommentFeedback::getHelpful,
+                                        (a, b) -> a));
+        rows.forEach(r -> r.setFeedbackHelpful(helpfulMap.get(r.getId())));
     }
 
     /** 详情：按角色做数据范围校验 */
@@ -202,7 +232,90 @@ public class CommentService {
                                 .eq(CommentSentiment::getCommentId, id)
                                 .last("limit 1"));
         d.setSentiment(s);
+        d.setFeedback(feedbackOf(id));
         return d;
+    }
+
+    // ------------------------------------------------------------------ 学生反馈
+
+    /**
+     * 提交或更新本人对某条点评的反馈。
+     *
+     * <p><b>为什么复用 {@link #assertCanView}</b>：反馈的可见范围与点评的可见范围必须完全一致。 学生只能对「本人 +
+     * 已发布」的点评反馈——点评被撤回后，学生端看不到它， 反馈入口自然消失。若这里另写一套判断，撤回发布后就会出现「看不到点评但能提交反馈」的裂缝。
+     *
+     * <p><b>为什么只允许学生提交</b>：导师与教务走 assertCanView 也会被放行， 但反馈的主体是学生。不拦的话导师能给自己写的点评打「有帮助」，这条数据就失去了意义。
+     *
+     * <p><b>并发说明</b>：同一学生连点两次提交，极小概率同时走到 insert 并撞 {@code
+     * uk_feedback_pair}。毕设场景（单人操作）不做额外重试；真出现时前端会收到一次失败提示， 重试即走更新分支。用唯一索引兜底而不是先查后插加锁，是为了不让读路径承担写锁。
+     */
+    @Transactional
+    public void saveFeedback(Long commentId, CommentDtos.FeedbackReq req) {
+        if (!authContext.isStudent()) {
+            throw BizException.forbidden("只有学生可以提交点评反馈");
+        }
+        // 不依赖 Controller 的 @Valid：Boolean.TRUE.equals(null) 会静默当成"帮助不大"，
+        // 一条本该被拒绝的空表态就变成了明确的负面反馈——这类默认值最容易埋错数据。
+        if (req.getHelpful() == null) {
+            throw new BizException(400, "请选择这条点评是否对你有帮助");
+        }
+        Comment c = commentMapper.selectById(commentId);
+        if (c == null) {
+            throw BizException.notFound("点评不存在");
+        }
+        assertCanView(c);
+
+        CommentFeedback exist =
+                feedbackMapper.selectOne(
+                        new LambdaQueryWrapper<CommentFeedback>()
+                                .eq(CommentFeedback::getCommentId, commentId)
+                                .last("limit 1"));
+
+        boolean helpful = Boolean.TRUE.equals(req.getHelpful());
+        String content = req.getContent() == null ? null : req.getContent().trim();
+        if (content != null && content.isEmpty()) {
+            // 只填空格等同于没写：存 null 而不是空串，避免导出/展示时出现空白行
+            content = null;
+        }
+
+        if (exist == null) {
+            CommentFeedback f = new CommentFeedback();
+            f.setCommentId(commentId);
+            // 归属取自点评本身，不取请求参数，也不取当前登录态——避免"给别人的点评写反馈"
+            f.setStudentId(c.getStudentId());
+            f.setHelpful(helpful ? 1 : 0);
+            f.setContent(content);
+            f.setCreatedAt(LocalDateTime.now());
+            feedbackMapper.insert(f);
+        } else {
+            // 必须用显式 set，不能用 updateById：MyBatis-Plus 默认策略会跳过 null 字段，
+            // 学生把补充说明删空后，旧文本会原样留在库里——表现为"点了提交但内容没变"。
+            feedbackMapper.update(
+                    null,
+                    new LambdaUpdateWrapper<CommentFeedback>()
+                            .eq(CommentFeedback::getId, exist.getId())
+                            .set(CommentFeedback::getHelpful, helpful ? 1 : 0)
+                            .set(CommentFeedback::getContent, content)
+                            .set(CommentFeedback::getUpdatedAt, LocalDateTime.now()));
+        }
+    }
+
+    /** 某条点评的反馈；未反馈返回 null（一条点评只对应一个学生，按 commentId 查即唯一） */
+    private CommentDtos.FeedbackView feedbackOf(Long commentId) {
+        CommentFeedback f =
+                feedbackMapper.selectOne(
+                        new LambdaQueryWrapper<CommentFeedback>()
+                                .eq(CommentFeedback::getCommentId, commentId)
+                                .last("limit 1"));
+        if (f == null) {
+            return null;
+        }
+        CommentDtos.FeedbackView v = new CommentDtos.FeedbackView();
+        v.setHelpful(f.getHelpful());
+        v.setContent(f.getContent());
+        v.setCreatedAt(f.getCreatedAt());
+        v.setUpdatedAt(f.getUpdatedAt());
+        return v;
     }
 
     /**

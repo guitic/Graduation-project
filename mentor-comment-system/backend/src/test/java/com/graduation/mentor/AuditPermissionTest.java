@@ -19,6 +19,7 @@ import com.graduation.mentor.entity.CommentAudit;
 import com.graduation.mentor.entity.Student;
 import com.graduation.mentor.mapper.ClazzMapper;
 import com.graduation.mentor.mapper.CommentAuditMapper;
+import com.graduation.mentor.mapper.CommentFeedbackMapper;
 import com.graduation.mentor.mapper.CommentMapper;
 import com.graduation.mentor.mapper.CommentSentimentMapper;
 import com.graduation.mentor.mapper.MajorMapper;
@@ -84,6 +85,7 @@ class AuditPermissionTest {
                         commentMapper,
                         auditMapper,
                         sentimentMapper,
+                        mock(CommentFeedbackMapper.class),
                         studentMapper,
                         teacherMapper,
                         clazzMapper,

@@ -101,86 +101,59 @@ class AuditStateMachineTest {
         when(commentMapper.selectById(CID)).thenReturn(comment(CommentStatus.PENDING, false));
     }
 
-    // ------------------------------------------------------------ 意见字数门槛
+    // ------------------------------------------------------------ 意见长度
 
     @Nested
-    @DisplayName("审核意见字数门槛：越接近不可逆，理由要求越高")
-    class OpinionThreshold {
+    @DisplayName("审核意见不限字数：只挡空意见与超长文本")
+    class OpinionLength {
 
         @Test
-        @DisplayName("通过并发布：4 字被拒，5 字放行")
-        void approvePublishNeeds5() {
-            BizException e =
-                    assertThrows(
-                            BizException.class, () -> auditService.approve(CID, req("同意发布", true)));
-            assertEquals(400, e.getCode());
-            assertTrue(e.getMessage().contains("5 字"), e.getMessage());
+        @DisplayName("两个字「同意」即可提交，不再要求凑满 5/10/20 字")
+        void shortOpinionAccepted() {
+            assertDoesNotThrow(() -> auditService.approve(CID, req("同意", true)));
+            assertDoesNotThrow(() -> auditService.approve(CID, req("同意", false)));
+            assertDoesNotThrow(() -> auditService.returnBack(CID, req("补课程", false)));
+            assertDoesNotThrow(() -> auditService.reject(CID, req("无关", false)));
 
-            assertDoesNotThrow(() -> auditService.approve(CID, req("内容完整同意", true)));
-        }
-
-        @Test
-        @DisplayName("仅通过：不足 10 字被拒，10 字放行")
-        void approveOnlyNeeds10() {
-            BizException e =
-                    assertThrows(
-                            BizException.class,
-                            () -> auditService.approve(CID, req("先通过暂不发布啊", false)));
-            assertEquals(400, e.getCode());
-            assertTrue(e.getMessage().contains("10 字"), e.getMessage());
-
-            assertDoesNotThrow(() -> auditService.approve(CID, req("内容需进一步核实再推送学生", false)));
-        }
-
-        @Test
-        @DisplayName("退回：不足 10 字被拒，10 字放行")
-        void returnNeeds10() {
-            BizException e =
-                    assertThrows(
-                            BizException.class,
-                            () -> auditService.returnBack(CID, req("请补充具体课程", false)));
-            assertEquals(400, e.getCode());
-            assertTrue(e.getMessage().contains("10 字"), e.getMessage());
-        }
-
-        @Test
-        @DisplayName("驳回：19 字被拒，20 字放行")
-        void rejectNeeds20() {
-            // 用 repeat 精确控制字数：手写中文句子数字数极易数错，而门槛测试最怕"看起来对"
-            String nineteen = "字".repeat(19);
-            BizException e =
-                    assertThrows(
-                            BizException.class,
-                            () -> auditService.reject(CID, req(nineteen, false)));
-            assertEquals(400, e.getCode());
-            assertTrue(e.getMessage().contains("20 字"), e.getMessage());
-
-            assertDoesNotThrow(() -> auditService.reject(CID, req("字".repeat(20), false)));
-        }
-
-        @Test
-        @DisplayName("撤回：不足 10 字被拒，10 字放行")
-        void unpublishNeeds10() {
             when(commentMapper.selectById(CID)).thenReturn(comment(CommentStatus.APPROVED, true));
-            BizException e =
-                    assertThrows(BizException.class, () -> auditService.unpublish(CID, "内容有错需要核实"));
-            assertEquals(400, e.getCode());
-            assertTrue(e.getMessage().contains("10 字"), e.getMessage());
+            assertDoesNotThrow(() -> auditService.unpublish(CID, "有错"));
         }
 
         @Test
-        @DisplayName("再发布（曾撤回）：无理由被拒，5 字放行")
-        void republishNeeds5() {
-            Comment c = comment(CommentStatus.APPROVED, false);
-            c.setWithdrawnAt(LocalDateTime.now().minusDays(1));
-            when(commentMapper.selectById(CID)).thenReturn(c);
-
+        @DisplayName("空白意见仍被拒：留痕不能是空串，提示引导去选常用理由")
+        void blankOpinionRejected() {
             BizException e =
-                    assertThrows(BizException.class, () -> auditService.publish(CID, null));
+                    assertThrows(
+                            BizException.class, () -> auditService.approve(CID, req("   ", true)));
             assertEquals(400, e.getCode());
-            assertTrue(e.getMessage().contains("5 字"), e.getMessage());
+            assertTrue(e.getMessage().contains("常用理由"), e.getMessage());
+        }
 
-            assertDoesNotThrow(() -> auditService.publish(CID, "内容已复核无误"));
+        @Test
+        @DisplayName("超过 500 字被拒：上限只为防止超长文本撑爆时间线与导出")
+        void tooLongOpinionRejected() {
+            BizException e =
+                    assertThrows(
+                            BizException.class,
+                            () -> auditService.approve(CID, req("字".repeat(501), true)));
+            assertEquals(400, e.getCode());
+            assertTrue(e.getMessage().contains("500"), e.getMessage());
+
+            assertDoesNotThrow(() -> auditService.approve(CID, req("字".repeat(500), true)));
+        }
+
+        @Test
+        @DisplayName("撤回 / 再发布同样不限字数，但仍须给出一条")
+        void withdrawAndRepublishAlsoUnlimited() {
+            when(commentMapper.selectById(CID)).thenReturn(comment(CommentStatus.APPROVED, true));
+            assertThrows(BizException.class, () -> auditService.unpublish(CID, " "));
+            assertDoesNotThrow(() -> auditService.unpublish(CID, "有错"));
+
+            Comment withdrawn = comment(CommentStatus.APPROVED, false);
+            withdrawn.setWithdrawnAt(LocalDateTime.now().minusDays(1));
+            when(commentMapper.selectById(CID)).thenReturn(withdrawn);
+            assertThrows(BizException.class, () -> auditService.publish(CID, null));
+            assertDoesNotThrow(() -> auditService.publish(CID, "复核"));
         }
 
         @Test

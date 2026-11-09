@@ -35,6 +35,13 @@
               <el-icon><User /></el-icon>{{ c.teacherName || '导师' }}
             </span>
             <span class="rc-term">{{ c.term }}</span>
+            <!-- 0 是合法值（帮助不大），不能用真值判断 -->
+            <span
+              v-if="c.feedbackHelpful !== null && c.feedbackHelpful !== undefined"
+              class="rc-fb"
+            >
+              <el-icon><ChatDotSquare /></el-icon>已反馈
+            </span>
           </div>
           <p class="rc-text">{{ c.content }}</p>
           <div class="rc-more">
@@ -81,6 +88,63 @@
           >
         </div>
         <div class="db-content">{{ detail.content }}</div>
+
+        <!--
+          反馈区：对象是「这条点评对我的帮助」，不是「对导师的评价」。
+          所以文案刻意避免"满意/不满意"这类打分措辞，也不展示任何聚合排名。
+        -->
+        <section v-if="fbReady" class="fb-block">
+          <div class="fb-head">
+            <span class="fb-title">这条点评对你有帮助吗？</span>
+            <span class="fb-note">仅用于了解点评是否有帮助，不作为对导师的评价</span>
+          </div>
+
+          <template v-if="fbEditing">
+            <div class="fb-choices">
+              <button
+                type="button"
+                :class="['fb-choice', { on: fbForm.helpful === 1 }]"
+                @click="fbForm.helpful = 1"
+              >
+                <el-icon><Select /></el-icon>有帮助
+              </button>
+              <button
+                type="button"
+                :class="['fb-choice', { on: fbForm.helpful === 0 }]"
+                @click="fbForm.helpful = 0"
+              >
+                <el-icon><CloseBold /></el-icon>帮助不大
+              </button>
+            </div>
+            <el-input
+              v-model="fbForm.content"
+              type="textarea"
+              :rows="3"
+              maxlength="500"
+              show-word-limit
+              resize="none"
+              placeholder="想补充说明或提问（选填）"
+            />
+            <div class="fb-actions">
+              <el-button v-if="hasFeedback" text size="small" @click="cancelEdit">取消</el-button>
+              <el-button type="primary" size="small" :loading="fbSubmitting" @click="submitFb">
+                提交反馈
+              </el-button>
+            </div>
+          </template>
+
+          <div v-else class="fb-done">
+            <div class="fb-done-row">
+              <el-tag :type="fb?.helpful === 1 ? 'success' : 'info'" effect="plain" size="small">
+                {{ fb?.helpful === 1 ? '有帮助' : '帮助不大' }}
+              </el-tag>
+              <span class="fb-time">{{ fmtTime(fb?.createdAt) }}</span>
+              <el-button link type="primary" size="small" @click="startEdit">修改</el-button>
+            </div>
+            <p v-if="fb?.content" class="fb-text">{{ fb.content }}</p>
+            <p v-else class="fb-text muted">（未填写补充说明）</p>
+          </div>
+        </section>
       </div>
       <template #footer>
         <el-button type="primary" @click="detailVisible = false">知道了</el-button>
@@ -90,10 +154,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { User, ArrowRight, Calendar, Clock } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import {
+  User,
+  ArrowRight,
+  Calendar,
+  Clock,
+  ChatDotSquare,
+  Select,
+  CloseBold
+} from '@element-plus/icons-vue'
 import EmptyHint from '../../components/EmptyHint.vue'
-import { pageStudent, studentDetail } from '../../api/comment'
+import { pageStudent, studentDetail, submitFeedback } from '../../api/comment'
 import { terms as termsApi } from '../../api/person'
 import { fmtTime } from '../../utils/status'
 
@@ -105,6 +178,56 @@ const terms = ref([])
 
 const detailVisible = ref(false)
 const detail = ref(null)
+
+// ---------------- 反馈 ----------------
+const fb = ref(null)
+const fbEditing = ref(false)
+const fbSubmitting = ref(false)
+const fbReady = ref(false)
+const fbForm = reactive({ helpful: null, content: '' })
+const hasFeedback = computed(() => !!fb.value)
+
+/** 把详情里带回的反馈同步到本地表单：未反馈直接进编辑态，已反馈先进只读态 */
+function syncFb() {
+  fb.value = detail.value?.myFeedback || null
+  fbEditing.value = !fb.value
+  fbForm.helpful = fb.value ? fb.value.helpful : null
+  fbForm.content = fb.value?.content || ''
+}
+
+function startEdit() {
+  fbEditing.value = true
+}
+
+function cancelEdit() {
+  fbEditing.value = false
+  fbForm.helpful = fb.value ? fb.value.helpful : null
+  fbForm.content = fb.value?.content || ''
+}
+
+async function submitFb() {
+  if (fbForm.helpful === null) {
+    ElMessage.warning('请选择这条点评是否对你有帮助')
+    return
+  }
+  fbSubmitting.value = true
+  try {
+    await submitFeedback(detail.value.id, {
+      helpful: fbForm.helpful === 1,
+      content: fbForm.content || null
+    })
+    ElMessage.success('反馈已提交')
+    // 重新拉详情：时间戳与内容以服务端为准（空白内容会被归一成 null）
+    detail.value = await studentDetail(detail.value.id)
+    syncFb()
+    // 列表上的「已反馈」标记也要跟着变
+    load()
+  } catch (e) {
+    /* 错误提示已由请求拦截器统一弹出 */
+  } finally {
+    fbSubmitting.value = false
+  }
+}
 
 /** 日期锚点：左边大号 MM-DD，下面年份，正文里不再重复时间 */
 function mdOf(v) {
@@ -142,12 +265,18 @@ async function loadTerms() {
 
 async function openDetail(c) {
   detailVisible.value = true
+  // 先用列表行渲染正文，避免弹窗空白；反馈区等详情回来再显示，
+  // 否则会先闪一下「未反馈」的按钮，再跳成「已反馈」的只读态。
   detail.value = c
+  fbReady.value = false
   try {
     const d = await studentDetail(c.id)
     detail.value = d
   } catch (e) {
     /* 已提示 */
+  } finally {
+    syncFb()
+    fbReady.value = true
   }
 }
 
@@ -179,7 +308,7 @@ onMounted(() => {
 }
 .read-card:hover {
   box-shadow: var(--mc-shadow-hover);
-  border-color: #d7e0fb;
+  border-color: var(--mc-hover-border);
 }
 .date-col {
   flex: 0 0 52px;
@@ -280,6 +409,99 @@ onMounted(() => {
   color: var(--mc-text-1);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 列表上的「已反馈」标记 */
+.rc-fb {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--sn-pos);
+  background: var(--mc-bg);
+  padding: 1px 8px;
+  border-radius: var(--mc-radius-pill);
+}
+
+/* 反馈区 */
+.fb-block {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--mc-border-weak);
+}
+.fb-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.fb-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mc-text-1);
+}
+.fb-note {
+  font-size: 11.5px;
+  color: var(--mc-text-4);
+}
+.fb-choices {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.fb-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-pill);
+  background: var(--mc-card);
+  color: var(--mc-text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.fb-choice:hover {
+  border-color: var(--mc-primary);
+  color: var(--mc-primary);
+}
+.fb-choice.on {
+  border-color: var(--mc-primary);
+  background: rgba(43, 92, 230, 0.08);
+  color: var(--mc-primary);
+  font-weight: 600;
+}
+.fb-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fb-done-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.fb-time {
+  font-size: 11.5px;
+  color: var(--mc-text-4);
+}
+.fb-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--mc-text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.fb-text.muted {
+  color: var(--mc-text-4);
 }
 @media (max-width: 760px) {
   .read-card {

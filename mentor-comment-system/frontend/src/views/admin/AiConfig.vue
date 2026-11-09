@@ -1,7 +1,7 @@
 <template>
   <div v-loading="loading" class="mc-page">
-    <div class="mc-page-head">
-      <div>
+    <div class="mc-page-head" :class="{ 'head-compact': embedded }">
+      <div v-if="!embedded">
         <div class="mc-page-title">AI 配置</div>
         <div class="mc-page-sub">
           这里填的 API Key
@@ -190,6 +190,12 @@ import { getConfig, saveConfig, testConfig, listModels } from '../../api/ai'
  * 2) 保存不需要重启，后端按配置版本号重建 ChatClient；
  * 3) "测试连接"发真实请求，把 401 / 余额不足 / 网络不通区分开，而不是让导师先撞上。
  */
+/**
+ * embedded = 被「系统设置」页当子视图用：隐藏标题与说明（由父页面二级 tab 承担），
+ * 保留右上角「当前可用 / 不可用」状态标签——它是运行状态，不是页面标题。
+ */
+defineProps({ embedded: { type: Boolean, default: false } })
+
 const PRESETS = {
   deepseek: { baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' },
   // 商汤日日新：文档给的是 https://token.sensenova.cn/v1，这里去掉 /v1（后端也会再兜一次）
@@ -437,7 +443,7 @@ onMounted(load)
   line-height: 1.5;
 }
 .field-hint.warn {
-  color: #b45309;
+  color: var(--mc-warn-text);
   background: rgba(180, 83, 9, 0.08);
   padding: 6px 10px;
   border-radius: 6px;

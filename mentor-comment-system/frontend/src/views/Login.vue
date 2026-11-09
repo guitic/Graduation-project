@@ -29,6 +29,10 @@
 
     <!-- 右侧表单区 -->
     <section class="panel">
+      <!-- 登录页也要能切主题：这里是用户第一次进系统的地方，
+           只有登录后顶栏才有按钮的话，首次访问只能被动跟随系统 -->
+      <ThemeSwitch class="panel-theme" />
+
       <div class="form-box">
         <h2>登录</h2>
         <p class="sub">请使用教务分配的账号登录系统</p>
@@ -97,6 +101,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '../store/auth'
+import ThemeSwitch from '../components/ThemeSwitch.vue'
 import { demoAccounts } from '../api/auth'
 
 const router = useRouter()
@@ -153,14 +158,15 @@ async function onSubmit() {
   display: grid;
   grid-template-columns: 1.05fr 1fr;
   height: 100vh;
-  background: #fff;
+  /* 用卡片色而不是页面底色：亮色下仍是纯白（和改版前一致），暗色下是略高的表面色 */
+  background: var(--mc-card);
 }
 
 /* 品牌区 */
 .brand {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(145deg, #1b3fb0 0%, #2b5ce6 55%, #4f7bf0 100%);
+  background: var(--mc-brand-grad);
   color: #fff;
   display: flex;
   align-items: center;
@@ -257,6 +263,12 @@ async function onSubmit() {
   font-size: 12px;
   color: var(--mc-text-3);
 }
+.panel-theme {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 2;
+}
 .form-box {
   width: 100%;
   max-width: 380px;
@@ -289,7 +301,7 @@ async function onSubmit() {
   gap: 8px;
   padding: 10px 12px;
   border: 1px dashed var(--mc-border);
-  background: #fafbfc;
+  background: var(--mc-surface-2);
   border-radius: 10px;
   font: inherit;
   font-size: 13px;
@@ -301,13 +313,13 @@ async function onSubmit() {
     color 0.16s ease;
 }
 .demo-toggle:hover {
-  border-color: #b9c8f7;
-  background: #f7f9ff;
+  border-color: var(--mc-hover-border);
+  background: var(--mc-hover);
   color: var(--mc-primary);
 }
 .demo-toggle.open {
   border-style: solid;
-  background: #fff;
+  background: var(--mc-card);
   color: var(--mc-text-1);
 }
 .demo-pwd {
@@ -335,7 +347,7 @@ async function onSubmit() {
 .chip {
   text-align: left;
   border: 1px solid var(--mc-border);
-  background: #fff;
+  background: var(--mc-card);
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
@@ -346,8 +358,8 @@ async function onSubmit() {
   font-family: inherit;
 }
 .chip:hover {
-  border-color: #b9c8f7;
-  background: #f7f9ff;
+  border-color: var(--mc-hover-border);
+  background: var(--mc-hover);
 }
 .chip.active {
   border-color: var(--mc-primary);

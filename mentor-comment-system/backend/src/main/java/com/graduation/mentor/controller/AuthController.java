@@ -37,6 +37,17 @@ public class AuthController {
         return R.ok(authService.me(authContext.userId()));
     }
 
+    /**
+     * 修改本人密码（三角色通用）。
+     *
+     * <p>成功即代表该账号的全部会话已失效，前端应清 token 并跳登录页。 接口不区分角色——改自己的密码不需要权限，只需要知道旧密码。
+     */
+    @PostMapping("/auth/password")
+    public R<Void> changePassword(@Valid @RequestBody AuthDtos.ChangePasswordReq req) {
+        authService.changePassword(authContext.userId(), req);
+        return R.ok();
+    }
+
     /** 演示账号提示（登录页 chip），无需登录即可获取 */
     @GetMapping("/demo/accounts")
     public R<Map<String, Object>> demoAccounts() {

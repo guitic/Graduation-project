@@ -52,16 +52,27 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * 只清本地登录态，不调登出接口。
+   *
+   * 用于「后端已经把会话踢掉了」的场景（修改密码成功即 logout）。
+   * 此时再调 /auth/logout 会拿到 401，被响应拦截器转成「登录已失效」的警告，
+   * 把「密码修改成功」的提示挤掉——用户看到的是报错，会以为改密失败。
+   */
+  function clearSession() {
+    token.value = ''
+    user.value = null
+    pendingCount.value = 0
+    clearToken()
+  }
+
   async function doLogout() {
     try {
       await authApi.logout()
     } catch (e) {
       /* 忽略登出接口异常 */
     }
-    token.value = ''
-    user.value = null
-    pendingCount.value = 0
-    clearToken()
+    clearSession()
   }
 
   return {
@@ -76,6 +87,7 @@ export const useAuthStore = defineStore('auth', () => {
     doLogin,
     ensureLoaded,
     refreshPending,
+    clearSession,
     doLogout
   }
 })

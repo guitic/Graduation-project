@@ -33,7 +33,9 @@ public class CommentDtos {
     /** 审核动作 */
     @Data
     public static class AuditReq {
-        @NotBlank(message = "审核意见必填")
+        /** 审核意见：必填，但**不限字数**（上限 500）。前端「常用理由」下拉可直接填入 */
+        @NotBlank(message = "请填写审核意见，或从常用理由中选择一条")
+        @Size(max = 500, message = "审核意见不超过 500 字")
         private String opinion;
 
         /** 仅 approve 使用：true=通过并发布，false=仅通过（待发布） */
@@ -102,6 +104,13 @@ public class CommentDtos {
 
         private LocalDateTime lastAuditAt;
         private String lastAuditor;
+
+        /**
+         * 该点评对应的学生反馈：null = 未反馈，1 = 有帮助，0 = 帮助不大。
+         *
+         * <p>三端语义一致（一条点评只对应一个学生），因此同一个字段可直接复用： 学生端是「我反馈过吗」，导师/教务端是「这条点评收到反馈了吗」。
+         */
+        private Integer feedbackHelpful;
     }
 
     /** 详情（含审核时间线） */
@@ -110,6 +119,31 @@ public class CommentDtos {
         private Row comment;
         private List<AuditItem> audits;
         private Object sentiment;
+
+        /** 学生反馈；未反馈时为 null */
+        private FeedbackView feedback;
+    }
+
+    /** 学生反馈（内容视图） */
+    @Data
+    public static class FeedbackView {
+        private Integer helpful;
+        private String content;
+        private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
+    }
+
+    /**
+     * 提交 / 更新反馈。
+     *
+     * <p>{@code helpful} 必填：没有表态的"纯文字反馈"无法区分是提问还是抱怨， 而这条记录的唯一用途就是判断学生对点评是否有回应，缺了它记录就没有意义。
+     */
+    @Data
+    public static class FeedbackReq {
+        @NotNull(message = "请选择这条点评是否对你有帮助") private Boolean helpful;
+
+        @Size(max = 500, message = "补充说明不超过 500 字")
+        private String content;
     }
 
     @Data

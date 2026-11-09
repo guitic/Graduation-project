@@ -23,11 +23,18 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthService {
 
+    /** 新密码长度下限：低于 8 位的口令在离线爆破下基本等于没有 */
+    private static final int PWD_MIN = 8;
+
+    /** 上限与 {@code sys_user.password}(varchar 100) 及 BCrypt 输入习惯对齐 */
+    private static final int PWD_MAX = 32;
+
     private final UserMapper userMapper;
     private final TeacherMapper teacherMapper;
     private final StudentMapper studentMapper;
     private final ClazzMapper clazzMapper;
     private final PasswordEncoder passwordEncoder;
+    private final OperLogService operLogService;
 
     /** 演示能力开关：非 demo 环境不暴露演示账号（含统一密码） */
     @Value("${app.demo-seed.enabled:false}")
@@ -63,6 +70,54 @@ public class AuthService {
         resp.setRoleLabel(roleLabel(user.getRole()));
         fillBiz(resp, user);
         return resp;
+    }
+
+    /**
+     * 修改本人密码。
+     *
+     * <p><b>为什么改完强制登出</b>：密码是凭证，改密码的语义是"旧凭证作废"。 若保留当前会话，攻击者用旧密码登录拿到的 token 依然有效，改密码就只改了数据库里的一个字段。
+     * 因此这里 {@code logout(userId)} 踢掉该账号的全部会话，前端收到成功响应后跳登录页。
+     *
+     * <p><b>为什么先记日志再登出</b>：{@code OperLogService} 需要从登录态取操作人，
+     * 登出后再记会取不到人，日志就变成一条"匿名改密"——恰恰是审计最需要看清的场景。
+     */
+    public void changePassword(Long userId, AuthDtos.ChangePasswordReq req) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException(401, "账号不存在");
+        }
+        if (!passwordEncoder.matches(req.getOldPassword(), user.getPassword())) {
+            // 不用"账号不存在"式统一提示：此处用户已登录，账号身份已知，模糊化没有收益
+            throw new BizException(400, "当前密码不正确");
+        }
+        String newPwd = req.getNewPassword();
+        validateNewPassword(newPwd);
+        if (passwordEncoder.matches(newPwd, user.getPassword())) {
+            throw new BizException(400, "新密码不能与当前密码相同");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPwd));
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        operLogService.record("修改密码", "USER", userId, "用户 " + user.getUsername() + " 修改本人密码");
+        StpUtil.logout(userId);
+    }
+
+    /**
+     * 新密码强度校验。
+     *
+     * <p>规则刻意保持"低门槛但有效"：长度 8-32 + 字母与数字兼具。 不强制大小写与特殊字符——本项目是校内系统，口令过于苛刻会导致 用户把密码写在便签上贴在显示器边，反而更不安全。
+     */
+    private void validateNewPassword(String pwd) {
+        if (pwd.length() < PWD_MIN || pwd.length() > PWD_MAX) {
+            throw new BizException(400, "新密码长度需为 " + PWD_MIN + "-" + PWD_MAX + " 位");
+        }
+        boolean hasLetter = pwd.chars().anyMatch(Character::isLetter);
+        boolean hasDigit = pwd.chars().anyMatch(Character::isDigit);
+        if (!hasLetter || !hasDigit) {
+            throw new BizException(400, "新密码需同时包含字母和数字");
+        }
     }
 
     public AuthDtos.MeResp me(Long userId) {

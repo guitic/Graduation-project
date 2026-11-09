@@ -1,9 +1,35 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f7fb" />
     <title>学业导师智能点评分析系统</title>
+    <script>
+      /*
+       * 首屏防闪白：在 CSS 加载前就把主题类打上。
+       * 放到 Vue 里做的话，深色用户会先看到一帧白底再变黑——答辩投屏时特别明显。
+       * 与 composables/useTheme.js 共用同一个 key 和判定规则。
+       */
+      ;(function () {
+        try {
+          var saved = localStorage.getItem('mc_theme')
+          var dark =
+            saved === 'dark' ||
+            (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) {
+            document.documentElement.classList.add('dark')
+            document.documentElement.dataset.theme = 'dark'
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0f1218')
+          } else {
+            document.documentElement.dataset.theme = 'light'
+          }
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+        } catch (e) {
+          /* localStorage 被禁用时按亮色渲染，不阻塞首屏 */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

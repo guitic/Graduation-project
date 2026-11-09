@@ -31,6 +31,6 @@ const meta = computed(() => precheckMeta(props.view?.riskLevel))
 <style scoped>
 .idle {
   color: var(--mc-text-4);
-  background: #f7f8fa;
+  background: var(--mc-surface-3);
 }
 </style>

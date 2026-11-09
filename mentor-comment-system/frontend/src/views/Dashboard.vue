@@ -15,6 +15,14 @@
         <el-tooltip content="重算全部已发布点评的情感与词频（演示/版本迁移用）" placement="bottom">
           <el-button :icon="Refresh" :loading="rebuilding" @click="onRebuild">重建分析</el-button>
         </el-tooltip>
+        <el-tooltip
+          content="导出当前筛选范围内的已发布点评：汇总 + 明细两个 sheet。范围由学期/导师/班级决定，不受趋势图时间窗影响"
+          placement="bottom"
+        >
+          <el-button type="primary" :icon="Download" :loading="exporting" @click="onExport">
+            导出报表
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
 
@@ -61,8 +69,8 @@
       </span>
     </div>
 
-    <!-- KPI -->
-    <KpiGrid :kpis="kpis" />
+    <!-- KPI：数字即入口，点开看这一类点评的明细 -->
+    <KpiGrid :kpis="kpis" clickable :active-key="activeKpi?.key || ''" @select="openKpi" />
 
     <!-- 图表区：每张图自己管理实例与门槛，口径行由卡片下发 -->
     <div class="chart-grid">
@@ -73,26 +81,36 @@
     </div>
 
     <DrillDrawer v-model="drawerVisible" :drill="drill" :loading="drawerLoading" />
+
+    <!-- KPI 卡明细：口径与卡片同源，条数必然等于卡片上的数字 -->
+    <KpiDrillDrawer
+      v-model="kpiVisible"
+      :kpi="activeKpi"
+      :scope="kpiScope"
+      @closed="activeKpi = null"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, RefreshLeft } from '@element-plus/icons-vue'
+import { Refresh, RefreshLeft, Download } from '@element-plus/icons-vue'
 import KpiGrid from '../components/dashboard/KpiGrid.vue'
 import SentimentCard from '../components/dashboard/SentimentCard.vue'
 import TrendCard from '../components/dashboard/TrendCard.vue'
 import AuditStatCard from '../components/dashboard/AuditStatCard.vue'
 import WordCloudCard from '../components/dashboard/WordCloudCard.vue'
 import DrillDrawer from '../components/dashboard/DrillDrawer.vue'
-import { dashboard, trendPoint, wordDetail, rebuild } from '../api/report'
+import KpiDrillDrawer from '../components/dashboard/KpiDrillDrawer.vue'
+import { dashboard, trendPoint, wordDetail, rebuild, exportReport } from '../api/report'
 import { terms, teachers, clazzOptions } from '../api/person'
 import { fmtTime } from '../utils/status'
 import { limits } from '../utils/limits'
 
 const loading = ref(false)
 const rebuilding = ref(false)
+const exporting = ref(false)
 const dash = ref(null)
 
 const filters = reactive({ term: '', teacherId: null, clazzId: null, months: 6 })
@@ -166,6 +184,23 @@ function resetFilters() {
   reload()
 }
 
+// ---------------- KPI 卡下钻 ----------------
+/**
+ * 点 KPI 卡 = 看这一类点评的明细。
+ *
+ * 传的是整张卡（key/label/value）而不是只传 key：抽屉在接口返回前就要有标题，
+ * 不能等首屏数据到了才知道自己叫什么。
+ */
+const kpiVisible = ref(false)
+const activeKpi = ref(null)
+/** 与卡片同一套筛选：学期 / 导师 / 班级。months 只影响趋势图，后端在这里会忽略它 */
+const kpiScope = computed(() => scopeParams())
+
+function openKpi(k) {
+  activeKpi.value = k
+  kpiVisible.value = true
+}
+
 // ---------------- 桶级下钻 ----------------
 const drawerVisible = ref(false)
 const drawerLoading = ref(false)
@@ -216,6 +251,26 @@ async function onRebuild() {
     /* 已提示 */
   } finally {
     rebuilding.value = false
+  }
+}
+
+/**
+ * 导出报表。
+ *
+ * 刻意不传 months：趋势图的时间窗只影响趋势图，而汇总 KPI 与明细一直是
+ * 按学期/导师/班级筛的。若导出跟着 months 走，就会出现「页面 KPI 说 56 条、
+ * 导出的 Excel 只有近 3 个月的 20 条」，且文件里看不出这个差别。
+ */
+async function onExport() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const name = await exportReport(scopeParams())
+    ElMessage.success(`已导出：${name}`)
+  } catch (e) {
+    /* 错误提示已由 download 统一处理 */
+  } finally {
+    exporting.value = false
   }
 }
 

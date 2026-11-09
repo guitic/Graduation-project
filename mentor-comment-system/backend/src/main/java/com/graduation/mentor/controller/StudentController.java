@@ -5,11 +5,14 @@ import com.graduation.mentor.common.R;
 import com.graduation.mentor.dto.CommentDtos;
 import com.graduation.mentor.mapper.CommentMapper;
 import com.graduation.mentor.service.CommentService;
+import jakarta.validation.Valid;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,7 +41,7 @@ public class StudentController {
         return R.ok(commentService.pageForStudent(q));
     }
 
-    /** 学生详情：只有正文、导师姓名、发布时间 */
+    /** 学生详情：只有正文、导师姓名、发布时间，外加本人写过的反馈 */
     @GetMapping("/{id}")
     public R<Map<String, Object>> detail(@PathVariable Long id) {
         CommentDtos.Detail d = commentService.detail(id);
@@ -50,6 +53,22 @@ public class StudentController {
         out.put("publishedAt", c.getPublishedAt());
         out.put("term", c.getTerm());
         out.put("topic", c.getTopic());
+        // 只回传「本人写过的反馈」，不是"该点评收到的反馈"。
+        // 一条点评只对应一个学生，两者恰好等价；但按后者理解会给未来"多条反馈"埋下越权伏笔。
+        out.put("myFeedback", d.getFeedback());
         return R.ok(out);
+    }
+
+    /**
+     * 提交 / 更新本人对某条已发布点评的反馈。
+     *
+     * <p>反馈对象是「这条点评对我的帮助」，不是「对导师的评价」：不进情感统计、不改点评状态、 不构成评分。数据范围校验复用 {@code
+     * assertCanView}——点评被撤回后此处自动 403。
+     */
+    @PostMapping("/{id}/feedback")
+    public R<Void> feedback(
+            @PathVariable Long id, @Valid @RequestBody CommentDtos.FeedbackReq req) {
+        commentService.saveFeedback(id, req);
+        return R.ok();
     }
 }

@@ -315,7 +315,9 @@ public class RulePrecheckEngine {
      * 意见草稿。
      *
      * <p>刻意写成"可读但需要改写"的句子，而不是一段完美文案：草稿越像成品，越容易被原样提交， comment_audit
-     * 里的意见就会退化成同一个模板——那正是"审核意见必填"想避免的结果。 每档草稿长度都高于对应动作的字数门槛，避免教务点开就被前端拦下。
+     * 里的意见就会退化成同一个模板——那正是"审核意见必填"想避免的结果。
+     *
+     * <p>审核意见的字数门槛已取消，草稿长度不再受任何下限约束；它仍然写成完整句， 是因为"点一下就能用"比"点了还要补字"更省事。
      */
     private String draftOpinion(String action, String topic, List<PrecheckIssue> issues) {
         String subject = topic == null || topic.isBlank() ? "本次指导" : "「" + topic + "」";

@@ -54,6 +54,8 @@
           </nav>
         </div>
         <div class="topbar-right">
+          <ThemeSwitch />
+
           <el-tag
             v-if="auth.isAdmin"
             type="info"
@@ -82,7 +84,10 @@
                 <el-dropdown-item disabled>
                   {{ auth.user?.username }} · {{ auth.roleLabel }}
                 </el-dropdown-item>
-                <el-dropdown-item divided command="logout">
+                <el-dropdown-item divided command="password">
+                  <el-icon><Lock /></el-icon> 修改密码
+                </el-dropdown-item>
+                <el-dropdown-item command="logout">
                   <el-icon><SwitchButton /></el-icon> 退出登录
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -102,28 +107,33 @@
 
     <!-- 全局 AI 小助手：三角色可见，Key 复用教务端配置 -->
     <AiAssistant />
+
+    <!-- 修改密码：三角色通用，入口在右上角用户菜单 -->
+    <ChangePasswordDialog v-model="showPassword" @changed="onPasswordChanged" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '../store/auth'
 import AiAssistant from '../components/AiAssistant.vue'
+import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
+import ThemeSwitch from '../components/ThemeSwitch.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const collapsed = ref(false)
+const showPassword = ref(false)
 
 const ALL_MENUS = {
   ADMIN: [
     { path: '/dashboard', label: '统计报表', icon: 'DataAnalysis' },
-    { path: '/audit', label: '审核队列', icon: 'Stamp', badgeKey: 'pending' },
-    { path: '/unpublished', label: '待发布 / 已撤回', icon: 'Promotion' },
+    { path: '/review', label: '审核与发布', icon: 'Stamp', badgeKey: 'pending' },
     { path: '/people', label: '师生管理', icon: 'UserFilled' },
-    { path: '/ai-config', label: 'AI 配置', icon: 'Cpu' }
+    { path: '/settings', label: '系统设置', icon: 'Setting' }
   ],
   TEACHER: [
     { path: '/comments', label: '我的点评', icon: 'Document' },
@@ -166,6 +176,10 @@ function goHome() {
 }
 
 async function onCommand(cmd) {
+  if (cmd === 'password') {
+    showPassword.value = true
+    return
+  }
   if (cmd === 'logout') {
     try {
       await ElMessageBox.confirm('确认退出登录？', '提示', {
@@ -180,6 +194,17 @@ async function onCommand(cmd) {
     router.replace('/login')
   }
 }
+
+/**
+ * 改密成功：后端已踢掉全部会话，这里只清本地状态并回登录页。
+ * 不走 auth.doLogout()，否则会再打一次 /auth/logout 拿到 401，
+ * 把「密码已修改」的提示覆盖成「登录已失效」。
+ */
+function onPasswordChanged() {
+  ElMessage.success('密码已修改，请用新密码重新登录')
+  auth.clearSession()
+  router.replace('/login')
+}
 </script>
 
 <style scoped>
@@ -193,7 +218,7 @@ async function onCommand(cmd) {
 .sidebar {
   width: 228px;
   flex-shrink: 0;
-  background: #0f1b3d;
+  background: var(--mc-sidebar);
   display: flex;
   flex-direction: column;
   transition: width 0.18s ease;
@@ -213,11 +238,11 @@ async function onCommand(cmd) {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #3b6bf0, #2b5ce6);
+  background: linear-gradient(135deg, var(--mc-primary-2), var(--mc-primary));
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--mc-on-primary);
   flex-shrink: 0;
 }
 .side-logo-text .t1 {
@@ -251,8 +276,8 @@ async function onCommand(cmd) {
   color: #fff;
 }
 .side-menu :deep(.el-menu-item.is-active) {
-  background: linear-gradient(135deg, #2b5ce6, #3b6bf0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--mc-primary), var(--mc-primary-2));
+  color: var(--mc-on-primary);
   font-weight: 600;
   box-shadow: 0 4px 12px rgba(43, 92, 230, 0.35);
 }
@@ -306,7 +331,7 @@ async function onCommand(cmd) {
 .topbar {
   height: 64px;
   flex-shrink: 0;
-  background: #fff;
+  background: var(--mc-card);
   border-bottom: 1px solid var(--mc-border-weak);
   display: flex;
   align-items: center;
@@ -366,14 +391,14 @@ async function onCommand(cmd) {
   transition: background 0.15s;
 }
 .user:hover {
-  background: var(--mc-bg);
+  background: var(--mc-hover);
 }
 .avatar {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2b5ce6, #4f7bf0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--mc-primary), var(--mc-primary-2));
+  color: var(--mc-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;

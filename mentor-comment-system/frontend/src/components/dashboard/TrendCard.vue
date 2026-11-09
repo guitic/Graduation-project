@@ -9,11 +9,11 @@
       <!-- 图例下沉到页脚：ECharts 的 legend 默认占据右上角，会和右轴名「正向率」、
            当月标注三者叠在一起。样式系统里本来就有 .legend-row，只是没用上。 -->
       <div class="legend-row">
-        <span class="lg"><i style="background: #12805c" />正向</span>
-        <span class="lg"><i style="background: #8f959e" />中性</span>
-        <span class="lg"><i style="background: #d92d20" />负向</span>
+        <span class="lg"><i style="background: var(--sn-pos)" />正向</span>
+        <span class="lg"><i style="background: var(--sn-neu)" />中性</span>
+        <span class="lg"><i style="background: var(--sn-neg)" />负向</span>
         <span v-if="data?.rateAvailable" class="lg">
-          <i style="background: #2b5ce6; border-radius: 50%" />正向率
+          <i style="background: var(--mc-primary); border-radius: 50%" />正向率
         </span>
       </div>
       <span v-if="drillable" class="hint">
@@ -29,6 +29,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { Pointer } from '@element-plus/icons-vue'
 import ChartCard from './ChartCard.vue'
 import { useChart } from '../../composables/useChart'
+import { useChartTheme } from '../../composables/useChartTheme'
 
 /**
  * 数量 + 情感趋势。
@@ -46,16 +47,17 @@ const props = defineProps({
 const emit = defineEmits(['drill'])
 
 const el = ref(null)
-
-const POS = '#12805c'
-const NEU = '#8f959e'
-const NEG = '#d92d20'
+const palette = useChartTheme()
 
 const hasData = computed(() => !!props.data?.months?.length)
 
 function buildOption() {
   const t = props.data
   if (!t || !t.months?.length) return null
+  const c = palette.value
+  const POS = c.pos
+  const NEU = c.neu
+  const NEG = c.neg
 
   const inProgIdx = (t.inProgress || []).findIndex(Boolean)
   const barData = (arr, color) =>
@@ -86,7 +88,7 @@ function buildOption() {
         inProgIdx >= 0
           ? {
               silent: true,
-              itemStyle: { color: 'rgba(43,92,230,0.05)' },
+              itemStyle: { color: c.band },
               // 不写字：label 默认贴在区域顶部，会和图例/轴名抢右上角，
               // 「更新中」改由 x 轴标签后缀表达，不再额外占空间
               label: { show: false },
@@ -116,12 +118,12 @@ function buildOption() {
     {
       type: 'value',
       name: '条数',
-      nameTextStyle: { color: '#6b7280', fontSize: 11 },
+      nameTextStyle: { color: c.axis, fontSize: 11 },
       // 取整刻度：默认 splitNumber 会给出 21 / 18 / 15 这类非整数格线
       splitNumber: 4,
       minInterval: 1,
-      splitLine: { lineStyle: { color: '#f0f1f4' } },
-      axisLabel: { color: '#6b7280', fontSize: 11 }
+      splitLine: { lineStyle: { color: c.grid } },
+      axisLabel: { color: c.axis, fontSize: 11 }
     }
   ]
 
@@ -135,8 +137,8 @@ function buildOption() {
       symbol: 'circle',
       symbolSize: 6,
       smooth: false,
-      lineStyle: { width: 2, color: '#2b5ce6' },
-      itemStyle: { color: '#2b5ce6' }
+      lineStyle: { width: 2, color: c.primary },
+      itemStyle: { color: c.primary }
     })
     yAxis.push({
       type: 'value',
@@ -145,10 +147,10 @@ function buildOption() {
       max: 1,
       // 轴名贴住轴线顶端，避免和图表上沿的其它元素抢位
       nameGap: 14,
-      nameTextStyle: { color: '#6b7280', fontSize: 11, align: 'left' },
+      nameTextStyle: { color: c.axis, fontSize: 11, align: 'left' },
       splitLine: { show: false },
       axisLabel: {
-        color: '#6b7280',
+        color: c.axis,
         fontSize: 11,
         formatter: (v) => Math.round(v * 100) + '%'
       }
@@ -165,9 +167,9 @@ function buildOption() {
       type: 'category',
       data: t.months,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#e5e6eb' } },
+      axisLine: { lineStyle: { color: c.line } },
       axisLabel: {
-        color: '#6b7280',
+        color: c.axis,
         fontSize: 11,
         lineHeight: 15,
         // 未完结月直接在刻度上标注，替代原来会压字的 markArea label
@@ -192,4 +194,7 @@ watch(
   () => nextTick(render),
   { deep: true }
 )
+
+// 主题切换必须重绘：坐标轴、网格线、柱色都是构建 option 时定死的
+watch(palette, () => nextTick(render))
 </script>

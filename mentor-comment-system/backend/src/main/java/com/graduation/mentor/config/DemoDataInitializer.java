@@ -4,15 +4,19 @@ import com.graduation.mentor.common.CommentStatus;
 import com.graduation.mentor.entity.Clazz;
 import com.graduation.mentor.entity.Comment;
 import com.graduation.mentor.entity.CommentAudit;
+import com.graduation.mentor.entity.CommentFeedback;
 import com.graduation.mentor.entity.Major;
+import com.graduation.mentor.entity.OperLog;
 import com.graduation.mentor.entity.Student;
 import com.graduation.mentor.entity.Teacher;
 import com.graduation.mentor.entity.TeacherStudent;
 import com.graduation.mentor.entity.User;
 import com.graduation.mentor.mapper.ClazzMapper;
 import com.graduation.mentor.mapper.CommentAuditMapper;
+import com.graduation.mentor.mapper.CommentFeedbackMapper;
 import com.graduation.mentor.mapper.CommentMapper;
 import com.graduation.mentor.mapper.MajorMapper;
+import com.graduation.mentor.mapper.OperLogMapper;
 import com.graduation.mentor.mapper.StudentMapper;
 import com.graduation.mentor.mapper.TeacherMapper;
 import com.graduation.mentor.mapper.TeacherStudentMapper;
@@ -85,8 +89,29 @@ public class DemoDataInitializer implements ApplicationRunner {
     private final TeacherStudentMapper teacherStudentMapper;
     private final CommentMapper commentMapper;
     private final CommentAuditMapper auditMapper;
+    private final OperLogMapper operLogMapper;
+    private final CommentFeedbackMapper feedbackMapper;
     private final AnalysisService analysisService;
     private final PasswordEncoder passwordEncoder;
+
+    /** 种子日志要写真实 userId，但一条日志查一次用户表在初始化时会被调用上百次。 操作人只有两种（导师本人 / 审核教务），缓存一次即可。 */
+    private final java.util.Map<String, Long> seedUserIdCache = new java.util.HashMap<>();
+
+    /**
+     * 学生反馈文本。
+     *
+     * <p>刻意写成学生口吻，并覆盖致谢 / 提问 / 提意见三种形态：真实反馈里这三种都有， 全写成"谢谢老师"会让演示看起来像刷出来的数据。
+     */
+    private static final String[] FEEDBACK_TEXTS = {
+        "看懂了，老师提到的算法练习我会在期末前补上。",
+        "谢谢老师，时间管理的建议很具体，已经按周计划在执行了。",
+        "有些地方还是不太明白，想再问问课程设计的具体要求。",
+        "建议比较笼统，希望能针对我这门课给更具体的方向。",
+        "已经和老师当面聊过了，点评里的问题基本解决了。",
+        "收到，会按建议调整学习方法，下学期再向老师汇报进展。",
+        "很有帮助，尤其是关于实验报告规范的那几点。",
+        "想补充一下，这学期我参加了学科竞赛，时间确实比较紧。"
+    };
 
     /** 正向倾向 */
     private static final String[] POS = {
@@ -328,6 +353,9 @@ public class DemoDataInitializer implements ApplicationRunner {
             int recentDays) {
         int created = 0;
         int seq = 0;
+        // 每个学生只给第一条已发布点评生成反馈：保证任意学生账号登录都能看到「已反馈」的样子，
+        // 否则演示时能不能看到反馈全靠随机分布，讲这段功能要看运气。
+        java.util.Set<Long> feedbackGiven = new java.util.HashSet<>();
         for (int b = 0; b < counts.length; b++) {
             YearMonth ym = YearMonth.now().minusMonths(monthAgo[b]);
             for (int k = 0; k < counts[b]; k++) {
@@ -373,6 +401,12 @@ public class DemoDataInitializer implements ApplicationRunner {
                 c.setCreatedAt(publishedAt.minusDays(2));
                 c.setUpdatedAt(publishedAt);
                 commentMapper.insert(c);
+
+                // seq == 0 是每班第一个学生的第一条，也就是演示账号 student01 的那一条。
+                // 刻意不给它预置反馈：留着「未反馈」状态，演示时才能现场走一遍提交→变只读态的完整流程。
+                if (seq > 0 && feedbackGiven.add(stu.getId())) {
+                    seedFeedback(c.getId(), stu.getId(), seq, publishedAt);
+                }
 
                 insertEvent(
                         c.getId(),
@@ -461,6 +495,57 @@ public class DemoDataInitializer implements ApplicationRunner {
         a.setRound(round);
         a.setAuditAt(at);
         auditMapper.insert(a);
+
+        // 种子同时补一条操作日志。
+        // 不补的话「操作日志」页在演示环境首次打开是空的——审计功能刚补上却演示不出来，
+        // 而真实使用中这些动作确实会留痕，种子数据应当与运行时的行为一致。
+        boolean byTeacher = AuditService.ACT_SUBMIT.equals(actionType);
+        String username = byTeacher ? "teacher01" : "admin";
+        OperLog operLog = new OperLog();
+        operLog.setUserId(userIdOf(username));
+        operLog.setUsername(username);
+        operLog.setRole(byTeacher ? "TEACHER" : "ADMIN");
+        operLog.setAction(actionType);
+        operLog.setTargetType("COMMENT");
+        operLog.setTargetId(commentId);
+        operLog.setDetail(opinion != null ? opinion : "提交点评，等待教务审核");
+        operLog.setCreatedAt(at);
+        operLogMapper.insert(operLog);
+    }
+
+    /**
+     * 种子反馈。
+     *
+     * <p>约 1/4 给「帮助不大」：全给正向会让演示看起来像刷出来的数据， 而真实反馈里确实会有一部分学生觉得建议不够具体。
+     */
+    private void seedFeedback(Long commentId, Long studentId, int seq, LocalDateTime publishedAt) {
+        LocalDateTime at = publishedAt.plusDays(2).withHour(20).withMinute(15);
+        if (at.isAfter(LocalDateTime.now())) {
+            at = LocalDateTime.now().minusHours(3);
+        }
+        CommentFeedback f = new CommentFeedback();
+        f.setCommentId(commentId);
+        f.setStudentId(studentId);
+        f.setHelpful(seq % 4 == 3 ? 0 : 1);
+        f.setContent(FEEDBACK_TEXTS[seq % FEEDBACK_TEXTS.length]);
+        f.setCreatedAt(at);
+        feedbackMapper.insert(f);
+    }
+
+    /** 按登录名取 userId（带缓存），日志缺 userId 时按操作人筛选会失效 */
+    private Long userIdOf(String username) {
+        return seedUserIdCache.computeIfAbsent(
+                username,
+                name -> {
+                    User u =
+                            userMapper.selectOne(
+                                    new com.baomidou.mybatisplus.core.conditions.query
+                                                            .LambdaQueryWrapper<
+                                                    User>()
+                                            .eq(User::getUsername, name)
+                                            .last("limit 1"));
+                    return u == null ? null : u.getId();
+                });
     }
 
     private String[] pickPool(int i) {

@@ -3,9 +3,15 @@ package com.graduation.mentor.controller;
 import com.graduation.mentor.common.R;
 import com.graduation.mentor.dto.StatDtos;
 import com.graduation.mentor.service.AnalysisService;
+import com.graduation.mentor.service.ReportExportService;
 import com.graduation.mentor.service.ReportService;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +27,7 @@ public class ReportController {
 
     private final ReportService reportService;
     private final AnalysisService analysisService;
+    private final ReportExportService exportService;
     private final com.graduation.mentor.common.AuthContext authContext;
 
     /** Dashboard 聚合：一次拿全，避免多请求之间数字对不上 */
@@ -59,6 +66,21 @@ public class ReportController {
         return R.ok(reportService.auditStat());
     }
 
+    /**
+     * KPI 卡下钻：点「待审核 8」列出这 8 条。
+     *
+     * <p>口径与 dashboard 的 kpi 同源（同一套条件构造），所以明细条数必然等于卡片上的数字。
+     */
+    @GetMapping("/kpi-detail")
+    public R<StatDtos.KpiDetail> kpiDetail(
+            @RequestParam String kpi,
+            StatDtos.Scope scope,
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "10") long size) {
+        reportService.requireAdmin();
+        return R.ok(reportService.kpiDetail(kpi, scope, page, size));
+    }
+
     @GetMapping("/wordcloud")
     public R<StatDtos.WordCloud> wordCloud(StatDtos.Scope scope) {
         reportService.requireAdmin();
@@ -92,5 +114,26 @@ public class ReportController {
     public R<Map<String, Object>> rebuild() {
         reportService.requireAdmin();
         return R.ok(analysisService.rebuildAll());
+    }
+
+    /**
+     * 报表导出（xlsx，汇总 + 明细两个 sheet）。
+     *
+     * <p>直接写二进制而不是包一层 {@code R<byte[]>}：前端拿到的是文件， 走 JSON 再 base64 解码只会让下载链路多一次失败点。 错误仍由全局异常处理返回统一
+     * JSON，前端按 content-type 区分成功与失败。
+     */
+    @GetMapping("/export")
+    public void export(StatDtos.Scope scope, HttpServletResponse resp) throws IOException {
+        byte[] bytes = exportService.export(scope);
+        resp.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        resp.setHeader(
+                HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment()
+                        .filename(exportService.suggestFileName(), StandardCharsets.UTF_8)
+                        .build()
+                        .toString());
+        resp.setContentLength(bytes.length);
+        resp.getOutputStream().write(bytes);
+        resp.getOutputStream().flush();
     }
 }

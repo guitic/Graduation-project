@@ -1,6 +1,7 @@
 package com.graduation.mentor.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.graduation.mentor.common.AuthContext;
 import com.graduation.mentor.common.BizException;
 import com.graduation.mentor.common.CommentScope;
@@ -55,6 +56,9 @@ public class ReportService {
     private final MinSampleProperties minSample;
     private final AnalysisService analysisService;
     private final AuthContext authContext;
+
+    /** 只借用它的行转换（toRows）：下钻明细的字段与列表页必须一致，不能各拼一套 */
+    private final CommentService commentService;
 
     /** 一次性返回 Dashboard 需要的全部数据，减少前端请求数与"图间数字对不上"的风险 */
     public StatDtos.Dashboard dashboard(StatDtos.Scope scope) {
@@ -451,8 +455,28 @@ public class ReportService {
 
     // ------------------------------------------------------------------ 内部
 
+    /**
+     * 已发布点评列表（导出模块使用）。
+     *
+     * <p>刻意做成 {@code public} 而不是让导出模块自己拼条件： 一旦导出绕过 {@link CommentScope#published()}，就会出现"页面上 56
+     * 条、导出的 Excel 里 60 条"——多出来的正是待审核与已撤回的点评，而且这种错误在 Excel 里看不出来。
+     */
+    public List<Comment> publishedList(StatDtos.Scope s) {
+        return publishedComments(s);
+    }
+
     /** 已发布点评 + 筛选条件（唯一入口） */
     private List<Comment> publishedComments(StatDtos.Scope s) {
+        return commentMapper.selectList(publishedQuery(s));
+    }
+
+    /**
+     * 已发布 + 筛选条件的条件对象。
+     *
+     * <p>单独抽出来是因为 KPI 下钻必须**在 SQL 层分页**：先查出全量再截断， 深页会把整张表读进内存。条件构造与 {@link #publishedComments}
+     * 完全同一份， 不存在"统计一套条件、明细另一套"的可能。
+     */
+    private LambdaQueryWrapper<Comment> publishedQuery(StatDtos.Scope s) {
         LambdaQueryWrapper<Comment> w = CommentScope.published();
         if (s != null) {
             if (s.getTerm() != null && !s.getTerm().isBlank()) {
@@ -474,7 +498,8 @@ public class ReportService {
                                 .map(Student::getId)
                                 .toList();
                 if (sids.isEmpty()) {
-                    return List.of();
+                    // 空集合不能直接 in：MyBatis-Plus 会生成 IN () 语法错误
+                    return w.eq(Comment::getId, -1L);
                 }
                 w.in(Comment::getStudentId, sids);
             }
@@ -485,7 +510,7 @@ public class ReportService {
                 w.le(Comment::getPublishedAt, s.getEndDate() + " 23:59:59");
             }
         }
-        return commentMapper.selectList(w);
+        return w;
     }
 
     private Map<Long, String> sentimentLabels(List<Comment> published) {
@@ -507,6 +532,121 @@ public class ReportService {
 
     private static double round3(double v) {
         return Math.round(v * 1000.0) / 1000.0;
+    }
+
+    // ------------------------------------------------------------------ KPI 卡下钻
+
+    /**
+     * KPI 卡下钻：点「待审核 8」就要能看到这 8 条。
+     *
+     * <p><b>为什么不复用 {@code /comment/admin-page}</b>：那张表用一个 status 参数表达状态， 而 KPI 的口径不是单一 status ——
+     * 「已发布 / 低置信」是 {@link CommentScope#published()} 再叠加筛选，「待审 / 待发 / 退回 / 驳回」是刻意忽略筛选的全量口径（见 {@link
+     * #kpi}）， 「总数」还是两部分的并集。这些条件塞不进一个 status 参数，强行复用就会出现 「卡片 56、明细 40」这种自相矛盾的演示事故。
+     *
+     * <p>因此这里直接复用 {@link #kpi} 的条件构造，保证「明细条数 = 卡片数字」恒等。
+     */
+    public StatDtos.KpiDetail kpiDetail(String kpi, StatDtos.Scope s, long page, long size) {
+        String key = kpi == null ? "" : kpi.trim();
+        LambdaQueryWrapper<Comment> w =
+                switch (key) {
+                    case "published" -> publishedQuery(s);
+                    case "lowConfidence" -> lowConfidenceQuery(s);
+                    case "pending" -> statusQuery(CommentStatus.PENDING);
+                    case "unpublished" -> CommentScope.approvedNotPublished();
+                    case "returned" -> statusQuery(CommentStatus.RETURNED);
+                    case "rejected" -> statusQuery(CommentStatus.REJECTED);
+                    case "total" -> totalQuery(s);
+                    default -> throw BizException.conflict("不支持的统计指标：" + key);
+                };
+
+        long p = Math.max(1, page);
+        long sz = Math.min(100, Math.max(1, size));
+        w.orderByDesc(Comment::getUpdatedAt).orderByDesc(Comment::getId);
+        Page<Comment> pg = commentMapper.selectPage(new Page<>(p, sz), w);
+
+        StatDtos.KpiDetail d = new StatDtos.KpiDetail();
+        d.setKpi(key);
+        d.setLabel(KPI_LABEL.getOrDefault(key, key));
+        d.setCaliber(KPI_CALIBER.getOrDefault(key, ""));
+        d.setTotal(pg.getTotal());
+        d.setPage(p);
+        d.setSize(sz);
+        d.setRecords(commentService.toRows(pg.getRecords()));
+        return d;
+    }
+
+    /** 指标 key → 卡片标题。与前端 KpiGrid 的 k.key 一一对应 */
+    private static final Map<String, String> KPI_LABEL =
+            Map.of(
+                    "total", "点评总数",
+                    "published", "已发布",
+                    "pending", "待审核",
+                    "unpublished", "待发布",
+                    "returned", "退回修改",
+                    "rejected", "已驳回",
+                    "lowConfidence", "低置信");
+
+    /**
+     * 指标 key → 口径说明。
+     *
+     * <p>必须写清"受不受学期/导师/班级筛选影响"：KPI 里状态类指标是全量口径， 用户筛了学期再点「待审核」，看到的是全院的待审——不解释就会被当成漏数据。
+     */
+    private static final Map<String, String> KPI_CALIBER =
+            Map.of(
+                    "total", "已发布（随筛选）+ 草稿/待审/退回/驳回（全量）；不含待发布",
+                    "published", "审核通过且已推送学生，随学期/导师/班级筛选",
+                    "pending", "全量口径，不受学期/导师/班级筛选影响",
+                    "unpublished", "已通过但未推送学生，全量口径",
+                    "returned", "全量口径，不受学期/导师/班级筛选影响",
+                    "rejected", "终态·不发布，全量口径",
+                    "lowConfidence", "已发布中置信度落在灰区的点评，建议人工复核；随筛选");
+
+    private LambdaQueryWrapper<Comment> statusQuery(String status) {
+        return new LambdaQueryWrapper<Comment>().eq(Comment::getStatus, status);
+    }
+
+    /**
+     * 总数 = 已发布（受筛选）∪ 草稿/待审/退回/驳回（全量）。
+     *
+     * <p>与 {@link #kpi} 里那段加法逐项对应：published + draft + pending + returned + rejected。 SQL 侧是 {@code
+     * A AND B OR C}，AND 优先级高于 OR，等价于 {@code (A AND B) OR C}； C 只是单个 IN 谓词，不会被 OR 拆错。
+     */
+    private LambdaQueryWrapper<Comment> totalQuery(StatDtos.Scope s) {
+        return publishedQuery(s)
+                .or()
+                .in(
+                        Comment::getStatus,
+                        List.of(
+                                CommentStatus.DRAFT,
+                                CommentStatus.PENDING,
+                                CommentStatus.RETURNED,
+                                CommentStatus.REJECTED));
+    }
+
+    /** 低置信口径：已发布 ∩ 情感结果落在灰区。空集合补 -1 兜底，避免 IN () 语法错误 */
+    private LambdaQueryWrapper<Comment> lowConfidenceQuery(StatDtos.Scope s) {
+        LambdaQueryWrapper<Comment> w = publishedQuery(s);
+        List<Long> ids = lowConfidenceIds(s);
+        if (ids.isEmpty()) {
+            return w.eq(Comment::getId, -1L);
+        }
+        return w.in(Comment::getId, ids);
+    }
+
+    private List<Long> lowConfidenceIds(StatDtos.Scope s) {
+        List<Long> publishedIds = publishedComments(s).stream().map(Comment::getId).toList();
+        if (publishedIds.isEmpty()) {
+            return List.of();
+        }
+        return sentimentMapper
+                .selectList(
+                        new LambdaQueryWrapper<CommentSentiment>()
+                                .in(CommentSentiment::getCommentId, publishedIds)
+                                .eq(CommentSentiment::getLowConfidence, 1))
+                .stream()
+                .map(CommentSentiment::getCommentId)
+                .distinct()
+                .toList();
     }
 
     /** 教务角色校验（报表只对教务开放） */

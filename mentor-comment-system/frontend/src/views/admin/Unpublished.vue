@@ -1,6 +1,6 @@
 <template>
   <div class="mc-page">
-    <div class="mc-page-head">
+    <div v-if="!embedded" class="mc-page-head">
       <div>
         <div class="mc-page-title">发布管理</div>
         <div class="mc-page-sub">
@@ -10,7 +10,7 @@
       <el-button :icon="Refresh" @click="reload">刷新</el-button>
     </div>
 
-    <div class="mc-card tabs-card">
+    <div class="mc-card tabs-card" :class="{ embedded }">
       <el-tabs v-model="tab" @tab-change="onTabChange">
         <!-- 待发布 -->
         <el-tab-pane name="unpublished">
@@ -112,7 +112,7 @@
                 title="还没有已发布的点评"
                 desc="点评在「待发布」确认发布后会出现在这里；已发布的点评可随时撤回，撤回后学生立即不可见。"
               >
-                <el-button size="small" @click="tab = 'unpublished'">查看待发布</el-button>
+                <el-button size="small" @click="goTab('unpublished')">查看待发布</el-button>
                 <el-button size="small" @click="reload">刷新</el-button>
               </EmptyHint>
             </template>
@@ -143,16 +143,29 @@
       <el-input
         v-model="reason"
         type="textarea"
-        :rows="4"
-        :maxlength="300"
-        show-word-limit
+        :rows="3"
+        :maxlength="500"
         :placeholder="dlg.placeholder"
       />
-      <div class="dlg-count" :class="{ ok: reason.trim().length >= dlg.minLen }">
-        已输入 <b>{{ reason.trim().length }}</b> 字 ·
-        <template v-if="dlg.minLen > 0"
-          >至少 <b>{{ dlg.minLen }}</b> 字</template
+
+      <!-- 常用理由：与审核弹窗同一套交互，撤回/再发布也不必手打 -->
+      <div v-if="dlg.reasons.length" class="quick-row">
+        <el-select
+          v-model="quickPick"
+          class="quick-select"
+          placeholder="常用理由：点选即填入输入框"
+          @change="applyReason"
         >
+          <el-option-group v-for="g in reasonGroups" :key="g.kind" :label="g.label">
+            <el-option v-for="r in g.items" :key="r.text" :label="r.text" :value="r.text" />
+          </el-option-group>
+        </el-select>
+        <el-button v-if="reason" text size="small" @click="reason = ''">清空</el-button>
+      </div>
+
+      <div class="dlg-count">
+        已输入 <b>{{ reason.trim().length }}</b> 字 ·
+        <template v-if="dlg.required">不限字数，可点上方理由一键填入</template>
         <template v-else>首次发布无需理由</template>
       </div>
       <template #footer>
@@ -166,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -175,12 +188,34 @@ import StatusTag from '../../components/StatusTag.vue'
 import { unpublishedPage, publishedPage, publish, unpublish } from '../../api/audit'
 import { fmtTime } from '../../utils/status'
 import { useAuthStore } from '../../store/auth'
-import { limits, ensureLimits } from '../../utils/limits'
+import { ensureLimits } from '../../utils/limits'
+import { AUDIT_REASONS, REASON_GROUPS, appendReason } from '../../utils/auditReasons'
 
 const auth = useAuthStore()
 const router = useRouter()
 
+/**
+ * embedded = 被「审核与发布」页当子视图用：隐藏自己的页面头与 tab 头，
+ * 由父页面的二级 tab 决定当前显示哪一栏。独立访问时（旧路由）保持原样。
+ */
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+  /** 父页面强制指定当前栏：unpublished / published */
+  forceTab: { type: String, default: '' }
+})
+
 const tab = ref('unpublished')
+
+watch(
+  () => props.forceTab,
+  (v) => {
+    if (v && v !== tab.value) {
+      tab.value = v
+      onTabChange()
+    }
+  },
+  { immediate: true }
+)
 
 const unpubRows = ref([])
 const unpubTotal = ref(0)
@@ -197,35 +232,54 @@ const acting = ref(false)
 const target = ref(null)
 const mode = ref('publish')
 const reason = ref('')
+/** 常用理由下拉的选中值：用完即清空 */
+const quickPick = ref('')
 
 const dlg = computed(() => {
-  const o = limits.opinion
   if (mode.value === 'publish') {
     const rePublish = !!target.value?.everWithdrawn
     return {
       title: rePublish ? '再发布（曾撤回）' : '发布点评',
-      minLen: rePublish ? o.republish : 0,
+      /** 再发布必须说明理由（字数不限）；首次发布不需要 */
+      required: rePublish,
+      reasons: rePublish ? AUDIT_REASONS.republish : [],
       btnType: 'primary',
       tone: 'info',
       confirmText: '确认发布',
       tip: rePublish
-        ? `该点评曾被撤回，再次发布属于「再发布」，需填写理由（≥${o.republish} 字）说明为何放回。`
+        ? '该点评曾被撤回，再次发布属于「再发布」，需要说明为何放回（字数不限）。'
         : '首次发布无需理由。发布后学生立即可见，并纳入统计与分析。',
-      placeholder: rePublish
-        ? `请填写再发布理由（≥${o.republish} 字），如：内容已复核无误，恢复发布。`
-        : '（可选）填写发布备注'
+      placeholder: rePublish ? '填写再发布理由，或从下方常用理由中点一条' : '（可选）填写发布备注'
     }
   }
   return {
     title: '撤回发布',
-    minLen: o.unpublish,
+    required: true,
+    reasons: AUDIT_REASONS.unpublish,
     btnType: 'warning',
     tone: 'warn',
     confirmText: '确认撤回',
-    tip: `撤回后学生立即不可见、不再纳入统计，点评回到「待发布」。需填写理由（≥${o.unpublish} 字）。`,
-    placeholder: `请填写撤回理由（≥${o.unpublish} 字），如：内容存在事实性错误，需导师核实后重新发布。`
+    tip: '撤回后学生立即不可见、不再纳入统计，点评回到「待发布」。需要说明原因（字数不限）。',
+    placeholder: '填写撤回理由，或从下方常用理由中点一条'
   }
 })
+
+const reasonGroups = computed(() => {
+  const items = dlg.value.reasons || []
+  return ['agree', 'disagree']
+    .map((kind) => ({
+      kind,
+      label: REASON_GROUPS[kind],
+      items: items.filter((r) => r.kind === kind)
+    }))
+    .filter((g) => g.items.length)
+})
+
+function applyReason(text) {
+  if (!text) return
+  reason.value = appendReason(reason.value, text)
+  quickPick.value = ''
+}
 
 async function loadUnpub() {
   unpubLoading.value = true
@@ -266,7 +320,22 @@ function onTabChange() {
 
 /** 空态里的出路：待发布为空通常意味着「审核队列还没处理」 */
 function goAudit() {
-  router.push('/audit')
+  router.push({ path: '/review', query: { tab: 'pending' } })
+}
+
+/**
+ * 切换到本组件的另一栏。
+ *
+ * embedded 时内部 tab 头是隐藏的，直接改 tab.value 用户看不到任何变化——
+ * 必须把状态交回父页面的二级 tab（走路由），否则点了像没反应。
+ */
+function goTab(name) {
+  if (props.embedded) {
+    router.replace({ path: '/review', query: { tab: name } })
+  } else {
+    tab.value = name
+    onTabChange()
+  }
 }
 
 function openPublish(row) {
@@ -284,9 +353,9 @@ function openUnpublish(row) {
 }
 
 async function confirm() {
-  const len = reason.value.trim().length
-  if (len < dlg.value.minLen) {
-    ElMessage.warning(`理由至少 ${dlg.value.minLen} 字`)
+  // 不限字数，但需要理由的动作不能空着提交
+  if (dlg.value.required && !reason.value.trim()) {
+    ElMessage.warning('请填写理由，或从常用理由中选择一条')
     return
   }
   acting.value = true
@@ -317,6 +386,16 @@ onMounted(() => {
 <style scoped>
 .tabs-card {
   padding: 8px 16px 16px;
+}
+/* 作为子视图时不要卡片内边距，也不要自己的 tab 头（外层已有二级 tab） */
+.tabs-card.embedded {
+  padding: 0;
+}
+.tabs-card.embedded :deep(.el-tabs__header) {
+  display: none;
+}
+.tabs-card.embedded :deep(.el-tabs__content) {
+  overflow: visible;
 }
 .tab-label {
   font-weight: 500;
@@ -352,7 +431,7 @@ onMounted(() => {
   padding: 14px 4px 0;
 }
 .dlg-target {
-  background: #fafbfc;
+  background: var(--mc-surface-2);
   border: 1px solid var(--mc-border-weak);
   border-radius: 10px;
   padding: 12px 14px;
@@ -377,12 +456,12 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 .dlg-tip.info {
-  background: #e0f2fe;
-  color: #0e7490;
+  background: var(--st-approved-bg);
+  color: var(--st-approved-fg);
 }
 .dlg-tip.warn {
-  background: #fef3e2;
-  color: #b45309;
+  background: var(--st-pending-bg);
+  color: var(--st-pending-fg);
 }
 .dlg-count {
   margin-top: 8px;
@@ -393,7 +472,14 @@ onMounted(() => {
 .dlg-count b {
   color: var(--mc-text-1);
 }
-.dlg-count.ok b {
-  color: #12805c;
+.quick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.quick-select {
+  flex: 1;
+  min-width: 0;
 }
 </style>

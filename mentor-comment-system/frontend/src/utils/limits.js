@@ -4,29 +4,21 @@ import { limits as limitsApi } from '../api/meta'
 /**
  * 门槛常量（前端唯一读取点）。
  *
- * 为什么不在页面里写死 5/10/10/20：
- * 这些数字原本前后端各写一份，后端拒绝、前端放行时用户看到的是「点了提交没反应」，
- * 或者前端拦下后端本可接受的输入。现在统一由 `GET /api/meta/limits` 下发，
- * 后端改常量、前端文案自动跟随，不需要同步改两个仓库。
+ * 为什么不在页面里写死 5：
+ * 这个数字原本前后端各写一份，后端拒绝、前端放行时用户看到的是「点了提交没反应」。
+ * 现在统一由 `GET /api/meta/limits` 下发，后端改常量、前端文案自动跟随。
  *
- * DEFAULTS 只在接口不可用时兜底（例如后端未启动、旧版本无该接口），
- * 数值必须与后端 AuditService 常量 / analysis.min-sample 默认值保持一致。
+ * **审核意见的字数门槛已取消**（只保留 500 字上限，由后端校验），
+ * 因此这里不再有 opinion 一组数字——"至少 N 字"的文案在系统里已经不存在了。
+ *
+ * DEFAULTS 只在接口不可用时兜底，数值必须与后端 analysis.min-sample 默认值一致。
  */
 const DEFAULTS = {
-  minSample: 5,
-  opinion: {
-    approvePublish: 5,
-    approveOnly: 10,
-    return: 10,
-    reject: 20,
-    unpublish: 10,
-    republish: 5
-  }
+  minSample: 5
 }
 
 export const limits = reactive({
   minSample: DEFAULTS.minSample,
-  opinion: { ...DEFAULTS.opinion },
   loaded: false
 })
 
@@ -40,7 +32,6 @@ export function ensureLimits() {
       .then((r) => {
         if (r) {
           limits.minSample = r.minSample ?? DEFAULTS.minSample
-          Object.assign(limits.opinion, r.opinion || {})
         }
         limits.loaded = true
         return limits

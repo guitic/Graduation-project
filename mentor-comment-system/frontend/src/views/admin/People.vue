@@ -493,7 +493,7 @@ async function saveTeacher() {
 
 function showInitialPassword(r) {
   ElMessageBox.alert(
-    `登录名：${r.username}\n初始密码：${r.initialPassword}\n\n该密码只展示这一次，请转告本人并提醒首次登录后修改。`,
+    `登录名：${r.username}\n初始密码：${r.initialPassword}\n\n该密码只展示这一次，请转告本人并提醒首次登录后修改。\n修改方式：登录后点击右上角头像 → 修改密码`,
     '账号已创建',
     { confirmButtonText: '我已记录', type: 'success' }
   )
@@ -523,10 +523,14 @@ async function onTeacherCommand(cmd, row) {
     }
     try {
       const r = await resetPassword(row.userId)
-      ElMessageBox.alert(`新密码：${r.password}\n\n请转告本人并提醒尽快修改。`, '密码已重置', {
-        confirmButtonText: '我已记录',
-        type: 'success'
-      })
+      ElMessageBox.alert(
+        `新密码：${r.password}\n\n请转告本人并提醒尽快修改。\n修改方式：登录后点击右上角头像 → 修改密码`,
+        '密码已重置',
+        {
+          confirmButtonText: '我已记录',
+          type: 'success'
+        }
+      )
     } catch (e) {
       /* 已提示 */
     }
@@ -694,7 +698,7 @@ onMounted(() => {
   gap: 11px;
   padding: 10px 8px 10px 12px;
   border: 1px solid var(--mc-border-weak);
-  background: #fff;
+  background: var(--mc-card);
   border-radius: 10px;
   cursor: pointer;
   text-align: left;
@@ -702,8 +706,8 @@ onMounted(() => {
   font-family: inherit;
 }
 .teacher-item:hover {
-  border-color: #c7d4f8;
-  background: #f8faff;
+  border-color: var(--mc-hover-border);
+  background: var(--mc-hover);
 }
 .teacher-item.active {
   border-color: var(--mc-primary);
@@ -717,8 +721,8 @@ onMounted(() => {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #2b5ce6, #4f7bf0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--mc-primary), var(--mc-primary-2));
+  color: var(--mc-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;

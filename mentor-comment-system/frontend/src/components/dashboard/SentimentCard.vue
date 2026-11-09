@@ -15,9 +15,9 @@
 
     <template #foot>
       <div class="legend-row">
-        <span class="lg"><i style="background: #12805c" />正向 {{ data.positive }}</span>
-        <span class="lg"><i style="background: #8f959e" />中性 {{ data.neutral }}</span>
-        <span class="lg"><i style="background: #d92d20" />负向 {{ data.negative }}</span>
+        <span class="lg"><i style="background: var(--sn-pos)" />正向 {{ data.positive }}</span>
+        <span class="lg"><i style="background: var(--sn-neu)" />中性 {{ data.neutral }}</span>
+        <span class="lg"><i style="background: var(--sn-neg)" />负向 {{ data.negative }}</span>
       </div>
       <div class="rate-row">
         正向率
@@ -33,6 +33,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import ChartCard from './ChartCard.vue'
 import GateEmpty from '../GateEmpty.vue'
 import { useChart } from '../../composables/useChart'
+import { useChartTheme } from '../../composables/useChartTheme'
 
 /**
  * 情感分布环图。
@@ -46,6 +47,7 @@ const props = defineProps({
 
 const el = ref(null)
 const enough = computed(() => !!props.data?.enough)
+const palette = useChartTheme()
 
 function pct(v) {
   if (v == null) return '—'
@@ -55,6 +57,7 @@ function pct(v) {
 function buildOption() {
   const s = props.data
   if (!s) return null
+  const c = palette.value
   return {
     tooltip: {
       trigger: 'item',
@@ -65,7 +68,7 @@ function buildOption() {
       icon: 'circle',
       itemWidth: 8,
       itemHeight: 8,
-      textStyle: { color: '#646a73', fontSize: 12 }
+      textStyle: { color: c.text, fontSize: 12 }
     },
     graphic: [
       {
@@ -76,7 +79,7 @@ function buildOption() {
           text: String(s.total),
           fontSize: 28,
           fontWeight: 700,
-          fill: '#1f2329',
+          fill: c.strong,
           textAlign: 'center'
         }
       },
@@ -84,7 +87,7 @@ function buildOption() {
         type: 'text',
         left: 'center',
         top: '47%',
-        style: { text: '已发布', fontSize: 12, fill: '#8f959e', textAlign: 'center' }
+        style: { text: '已发布', fontSize: 12, fill: c.axis, textAlign: 'center' }
       }
     ],
     series: [
@@ -93,14 +96,15 @@ function buildOption() {
         radius: ['56%', '76%'],
         center: ['50%', '46%'],
         avoidLabelOverlap: true,
-        itemStyle: { borderColor: '#fff', borderWidth: 2 },
+        // 描边取卡片底色：写死 #fff 的话，暗色主题下环上会有一圈白线
+        itemStyle: { borderColor: c.surface, borderWidth: 2 },
         label: { show: false },
         labelLine: { show: false },
         emphasis: { scale: true, scaleSize: 4 },
         data: [
-          { value: s.positive, name: '正向', itemStyle: { color: '#12805c' } },
-          { value: s.neutral, name: '中性', itemStyle: { color: '#8f959e' } },
-          { value: s.negative, name: '负向', itemStyle: { color: '#d92d20' } }
+          { value: s.positive, name: '正向', itemStyle: { color: c.pos } },
+          { value: s.neutral, name: '中性', itemStyle: { color: c.neu } },
+          { value: s.negative, name: '负向', itemStyle: { color: c.neg } }
         ]
       }
     ]
@@ -114,4 +118,7 @@ watch(
   () => nextTick(render),
   { deep: true }
 )
+
+// 主题切换必须重绘：ECharts 的颜色是构建 option 时定死的，不会自己跟着 CSS 变量走
+watch(palette, () => nextTick(render))
 </script>

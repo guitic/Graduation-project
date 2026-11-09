@@ -43,20 +43,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuditService {
 
     /**
-     * 审核意见字数门槛（与前端 auditRules 保持一致）。
+     * 审核意见的长度上限。
      *
-     * <p>设计原则：<b>门槛按动作性质分档，不按统一字数</b>；且<b>不设任何预填</b>—— 预填会让"必填"沦为形式，`comment_audit`
-     * 填满同一句话，看起来有记录实则无信息。
+     * <p><b>只设上限，不设下限</b>：下限（原来 5/10/20 字分档）把"意见写清楚"变成了字数凑数，
+     * 实际写出来的多是"内容完整表述规范同意发布"这类填充句，信息量并不比"同意"多。 真正的质量保障交给前端「常用理由」下拉——一键选中的理由本身就写清楚了同意/不同意的依据，
+     * 比逼老师凑字数有效。下限取消后，审核仍要求**至少填一条**（可从常用理由中选）， 保证 {@code comment_audit} 的留痕不出现空意见。
      */
-    public static final int MIN_OPINION_APPROVE_PUBLISH = 5;
-
-    public static final int MIN_OPINION_APPROVE_ONLY = 10;
-    public static final int MIN_OPINION_RETURN = 10;
-    public static final int MIN_OPINION_REJECT = 20;
-    public static final int MIN_OPINION_UNPUBLISH = 10;
-
-    /** 再发布（曾撤回过的点评重新发布）的理由门槛 */
-    public static final int MIN_OPINION_REPUBLISH = 5;
+    public static final int MAX_OPINION_LENGTH = 500;
 
     /** 事件类型 */
     public static final String ACT_SUBMIT = "SUBMIT";
@@ -170,10 +163,7 @@ public class AuditService {
     @Transactional
     public void approve(Long id, CommentDtos.AuditReq req) {
         requireAdmin();
-        checkOpinion(
-                req.getOpinion(),
-                req.isPublish() ? MIN_OPINION_APPROVE_PUBLISH : MIN_OPINION_APPROVE_ONLY,
-                req.isPublish() ? "通过并发布" : "仅通过");
+        String opinion = requireOpinion(req.getOpinion(), req.isPublish() ? "通过并发布" : "仅通过");
 
         Comment c = mustGet(id);
         LocalDateTime now = LocalDateTime.now();
@@ -196,15 +186,12 @@ public class AuditService {
                 id,
                 CommentStatus.APPROVED,
                 req.isPublish() ? ACT_APPROVE_PUBLISH : ACT_APPROVE_ONLY,
-                req.getOpinion(),
+                opinion,
                 null,
                 c.getVersion(),
                 now);
         operLogService.record(
-                req.isPublish() ? ACT_APPROVE_PUBLISH : ACT_APPROVE_ONLY,
-                "COMMENT",
-                id,
-                req.getOpinion());
+                req.isPublish() ? ACT_APPROVE_PUBLISH : ACT_APPROVE_ONLY, "COMMENT", id, opinion);
 
         if (req.isPublish()) {
             analysisService.analyzeAndSave(commentMapper.selectById(id));
@@ -214,7 +201,7 @@ public class AuditService {
     @Transactional
     public void returnBack(Long id, CommentDtos.AuditReq req) {
         requireAdmin();
-        checkOpinion(req.getOpinion(), MIN_OPINION_RETURN, "退回修改");
+        String opinion = requireOpinion(req.getOpinion(), "退回修改");
 
         Comment c = mustGet(id);
         LocalDateTime now = LocalDateTime.now();
@@ -233,17 +220,17 @@ public class AuditService {
                 id,
                 CommentStatus.RETURNED,
                 ACT_RETURN,
-                req.getOpinion(),
+                opinion,
                 c.getContent(),
                 c.getVersion(),
                 now);
-        operLogService.record(ACT_RETURN, "COMMENT", id, req.getOpinion());
+        operLogService.record(ACT_RETURN, "COMMENT", id, opinion);
     }
 
     @Transactional
     public void reject(Long id, CommentDtos.AuditReq req) {
         requireAdmin();
-        checkOpinion(req.getOpinion(), MIN_OPINION_REJECT, "驳回");
+        String opinion = requireOpinion(req.getOpinion(), "驳回");
 
         Comment c = mustGet(id);
         LocalDateTime now = LocalDateTime.now();
@@ -262,11 +249,11 @@ public class AuditService {
                 id,
                 CommentStatus.REJECTED,
                 ACT_REJECT,
-                req.getOpinion(),
+                opinion,
                 c.getContent(),
                 c.getVersion(),
                 now);
-        operLogService.record(ACT_REJECT, "COMMENT", id, req.getOpinion());
+        operLogService.record(ACT_REJECT, "COMMENT", id, opinion);
     }
 
     /**
@@ -274,7 +261,7 @@ public class AuditService {
      *
      * <p><b>不提供批量发布</b>：批量更新极易写成 {@code WHERE id IN (...)} 的裸 SQL， 绕过逐条状态校验，是状态机被破坏的主要入口，且答辩零增量。
      *
-     * <p>若该点评曾被撤回（{@code withdrawnAt != null}），则属于"再发布"，必须填理由 ≥5 字。
+     * <p>若该点评曾被撤回（{@code withdrawnAt != null}），则属于"再发布"，必须填理由（字数不限）。
      */
     @Transactional
     public void publish(Long id, String reason) {
@@ -284,8 +271,9 @@ public class AuditService {
             throw BizException.conflict("仅审核通过的点评可发布，当前状态：" + CommentStatus.label(c.getStatus()));
         }
         boolean republish = c.getWithdrawnAt() != null;
-        if (republish) {
-            checkOpinion(reason, MIN_OPINION_REPUBLISH, "再发布");
+        String note = normalizeOpinion(reason);
+        if (republish && note == null) {
+            throw new BizException(400, "再发布需要填写理由，或从常用理由中选择一条");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -301,9 +289,8 @@ public class AuditService {
         if (rows == 0) {
             throw BizException.conflict("该点评已发布，请勿重复操作");
         }
-        writeEvent(
-                id, "PUBLISHED", ACT_PUBLISH, republish ? reason : null, null, c.getVersion(), now);
-        operLogService.record(ACT_PUBLISH, "COMMENT", id, republish ? reason : "首次发布");
+        writeEvent(id, "PUBLISHED", ACT_PUBLISH, note, null, c.getVersion(), now);
+        operLogService.record(ACT_PUBLISH, "COMMENT", id, note == null ? "首次发布" : note);
 
         // 文本未变则复用分析结果；已变则重算（由 ensureAnalyzed 统一判定）
         analysisService.analyzeAndSave(commentMapper.selectById(id));
@@ -321,7 +308,7 @@ public class AuditService {
     @Transactional
     public void unpublish(Long id, String reason) {
         requireAdmin();
-        checkOpinion(reason, MIN_OPINION_UNPUBLISH, "撤回发布");
+        String note = requireOpinion(reason, "撤回发布");
 
         Comment c = mustGet(id);
         if (c.getPublishedAt() == null) {
@@ -393,10 +380,29 @@ public class AuditService {
         auditMapper.insert(a);
     }
 
-    private void checkOpinion(String opinion, int min, String action) {
-        if (opinion == null || opinion.trim().length() < min) {
-            throw new BizException(400, action + "的意见至少需 " + min + " 字，请补充具体说明");
+    /**
+     * 规范化审核意见：去首尾空白、空串归一为 null、超长直接拒绝。
+     *
+     * <p>只做"能不能存"的校验，不做"够不够长"的校验——字数下限已取消。
+     */
+    private String normalizeOpinion(String opinion) {
+        String v = opinion == null ? "" : opinion.trim();
+        if (v.isEmpty()) {
+            return null;
         }
+        if (v.length() > MAX_OPINION_LENGTH) {
+            throw new BizException(400, "意见不超过 " + MAX_OPINION_LENGTH + " 字，请精简后提交");
+        }
+        return v;
+    }
+
+    /** 必须给出意见的动作（通过 / 退回 / 驳回 / 撤回 / 再发布）：不限字数，但至少选一条 */
+    private String requireOpinion(String opinion, String action) {
+        String v = normalizeOpinion(opinion);
+        if (v == null) {
+            throw new BizException(400, action + "需要填写意见，或从常用理由中选择一条");
+        }
+        return v;
     }
 
     private Comment mustGet(Long id) {

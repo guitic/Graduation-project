@@ -252,6 +252,23 @@
 
         <div class="d-content">{{ current.content }}</div>
 
+        <!--
+          学生反馈：只读，不提供回复入口。
+          反馈是学生的表达，给了回复框就会变成辩论；导师要回应应该走线下沟通或新的点评。
+        -->
+        <div v-if="feedback" class="stu-feedback">
+          <div class="sf-head">
+            <el-icon><ChatLineSquare /></el-icon>
+            <span class="sf-title">学生反馈</span>
+            <el-tag :type="feedback.helpful === 1 ? 'success' : 'info'" effect="plain" size="small">
+              {{ feedback.helpful === 1 ? '有帮助' : '帮助不大' }}
+            </el-tag>
+            <span class="sf-time">{{ fmtTime(feedback.createdAt) }}</span>
+          </div>
+          <p v-if="feedback.content" class="sf-body">{{ feedback.content }}</p>
+          <p v-else class="sf-body muted">学生未填写补充说明</p>
+        </div>
+
         <div v-if="current.lastOpinion" class="last-opinion">
           <el-icon><ChatDotSquare /></el-icon>
           <div>
@@ -270,7 +287,14 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, ChatDotSquare, MagicStick, MoreFilled } from '@element-plus/icons-vue'
+import {
+  Plus,
+  Search,
+  ChatDotSquare,
+  ChatLineSquare,
+  MagicStick,
+  MoreFilled
+} from '@element-plus/icons-vue'
 import StatusTag from '../../components/StatusTag.vue'
 import SentimentTag from '../../components/SentimentTag.vue'
 import AuditTimeline from '../../components/AuditTimeline.vue'
@@ -313,6 +337,7 @@ const rules = {
 const detailVisible = ref(false)
 const current = ref(null)
 const audits = ref([])
+const feedback = ref(null)
 
 // ---------------- 摘要建议 ----------------
 const aiLoading = ref(false)
@@ -467,10 +492,12 @@ async function openDetail(row) {
   detailVisible.value = true
   current.value = row
   audits.value = []
+  feedback.value = null
   try {
     const d = await detail(row.id)
     current.value = d.comment
     audits.value = d.audits || []
+    feedback.value = d.feedback || null
   } catch (e) {
     /* 已提示 */
   }
@@ -528,11 +555,11 @@ onMounted(() => {
   border-radius: 5px;
 }
 .ai-src.is-llm {
-  color: #2b5ce6;
+  color: var(--mc-primary);
   background: rgba(43, 92, 230, 0.1);
 }
 .ai-src.is-rule {
-  color: #b45309;
+  color: var(--mc-warn-text);
   background: rgba(180, 83, 9, 0.1);
 }
 .ai-meta {
@@ -559,7 +586,7 @@ onMounted(() => {
 .ai-fallback {
   margin-top: 8px;
   font-size: 11.5px;
-  color: #b45309;
+  color: var(--mc-warn-text);
 }
 .f-search {
   width: 240px;
@@ -656,20 +683,59 @@ onMounted(() => {
   color: var(--mc-text-1);
   white-space: pre-wrap;
   word-break: break-word;
-  background: #fcfcfd;
+  background: var(--mc-surface-2);
   border: 1px solid var(--mc-border-weak);
   border-radius: 10px;
   padding: 14px 16px;
+}
+.stu-feedback {
+  margin-top: 14px;
+  padding: 13px 16px;
+  background: var(--mc-surface-2);
+  border: 1px solid var(--mc-border-weak);
+  border-left: 3px solid var(--mc-primary);
+  border-radius: 10px;
+}
+.sf-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sf-head .el-icon {
+  color: var(--mc-primary);
+  font-size: 14px;
+}
+.sf-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mc-text-1);
+}
+.sf-time {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--mc-text-4);
+}
+.sf-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--mc-text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.sf-body.muted {
+  color: var(--mc-text-4);
 }
 .last-opinion {
   display: flex;
   gap: 10px;
   margin-top: 14px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
+  background: var(--mc-warn-weak);
+  border: 1px solid var(--mc-warn-border);
   border-radius: 10px;
   padding: 12px 14px;
-  color: #9a3412;
+  color: var(--mc-warn-text);
 }
 .last-opinion .el-icon {
   margin-top: 2px;
@@ -682,7 +748,7 @@ onMounted(() => {
 .lo-body {
   font-size: 13px;
   line-height: 1.7;
-  color: #7c2d12;
+  color: var(--mc-warn-text);
 }
 .d-section-title {
   font-size: 14px;

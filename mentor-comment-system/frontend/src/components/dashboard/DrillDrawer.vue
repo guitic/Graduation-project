@@ -103,7 +103,7 @@ const emit = defineEmits(['update:modelValue'])
   border: 1px solid var(--mc-border-weak);
   border-radius: 10px;
   padding: 12px 14px;
-  background: #fcfcfd;
+  background: var(--mc-surface-2);
 }
 .di-head {
   display: flex;

@@ -231,6 +231,33 @@ create table sys_oper_log (
 create index idx_log_target on sys_oper_log (target_type, target_id);
 
 -- ---------------------------------------------------------------------------
+-- 11. 学生反馈（学生对一条已发布点评的回应，可修改）
+--
+--     **语义边界（写进论文）**：反馈的对象是「这条点评对我的帮助」，
+--     不是「对导师的评价」。因此：
+--       - 不参与任何情感统计口径（CommentScope.published() 只作用于 comment 表）；
+--       - 不影响点评状态机，不构成评分，不进任何导师考核报表；
+--       - 导师可读不可回（不提供回复入口），避免把反馈变成辩论。
+--     这三条是"反馈渠道"与"教学质量评价"的分界线，越过去就变成了另一套系统。
+--
+--     unique(comment_id, student_id)：一个学生对同一条点评只能有一条反馈，
+--     重复提交走更新（学生看到点评后改变想法是正常的，不该产生两条记录）。
+-- ---------------------------------------------------------------------------
+drop table if exists comment_feedback;
+create table comment_feedback (
+    id         bigint       not null auto_increment,
+    comment_id bigint       not null,
+    student_id bigint       not null,
+    helpful    tinyint      not null,
+    content    varchar(500),
+    created_at datetime     not null,
+    updated_at datetime,
+    primary key (id)
+);
+create unique index uk_feedback_pair on comment_feedback (comment_id, student_id);
+create index idx_feedback_comment on comment_feedback (comment_id);
+
+-- ---------------------------------------------------------------------------
 -- 12. 系统配置（运行期可改的键值对）
 --     当前只承载 AI 摘要相关配置：教务在后台填 API Key，保存即生效，无需重启、
 --     无需改环境变量、无需重新打包。导师端下一次点「生成摘要建议」就用上新 Key。

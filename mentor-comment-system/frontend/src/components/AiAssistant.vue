@@ -249,8 +249,8 @@ defineExpose({ open: openPanel })
   border-radius: 50%;
   border: none;
   cursor: pointer;
-  background: linear-gradient(135deg, #2b5ce6, #4f7bf0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--mc-primary), var(--mc-primary-2));
+  color: var(--mc-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -271,8 +271,8 @@ defineExpose({ open: openPanel })
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #22c55e;
-  border: 2px solid #fff;
+  background: var(--sn-pos);
+  border: 2px solid var(--mc-card);
 }
 
 /* 面板 */
@@ -287,7 +287,7 @@ defineExpose({ open: openPanel })
   flex-shrink: 0;
   height: 64px;
   padding: 0 16px;
-  background: #fff;
+  background: var(--mc-card);
   border-bottom: 1px solid var(--mc-border-weak);
   display: flex;
   align-items: center;
@@ -303,8 +303,8 @@ defineExpose({ open: openPanel })
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #2b5ce6, #4f7bf0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--mc-primary), var(--mc-primary-2));
+  color: var(--mc-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -347,7 +347,7 @@ defineExpose({ open: openPanel })
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: #fff;
+  background: var(--mc-card);
   border: 1px solid var(--mc-border-weak);
   color: var(--mc-primary);
   display: flex;
@@ -360,7 +360,7 @@ defineExpose({ open: openPanel })
   max-width: 78%;
   padding: 10px 13px;
   border-radius: 12px;
-  background: #fff;
+  background: var(--mc-card);
   border: 1px solid var(--mc-border-weak);
   font-size: 13px;
   line-height: 1.75;
@@ -369,14 +369,14 @@ defineExpose({ open: openPanel })
   word-break: break-word;
 }
 .msg.is-user .bubble {
-  background: linear-gradient(135deg, #2b5ce6, #4f7bf0);
-  color: #fff;
+  background: linear-gradient(135deg, var(--mc-primary), var(--mc-primary-2));
+  color: var(--mc-on-primary);
   border-color: transparent;
 }
 .msg.is-error .bubble {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #9a3412;
+  background: var(--mc-warn-weak);
+  border-color: var(--mc-warn-border);
+  color: var(--mc-warn-text);
 }
 .bubble-tag {
   margin-top: 6px;
@@ -432,7 +432,7 @@ defineExpose({ open: openPanel })
   text-align: left;
   padding: 8px 11px;
   border: 1px solid var(--mc-border-weak);
-  background: #fff;
+  background: var(--mc-card);
   border-radius: 8px;
   font-size: 12.5px;
   color: var(--mc-text-2);
@@ -441,15 +441,15 @@ defineExpose({ open: openPanel })
   transition: all 0.15s;
 }
 .quick-item:hover {
-  border-color: #c7d4f8;
-  background: #f8faff;
+  border-color: var(--mc-hover-border);
+  background: var(--mc-hover);
   color: var(--mc-primary);
 }
 
 /* 输入区 */
 .panel-foot {
   flex-shrink: 0;
-  background: #fff;
+  background: var(--mc-card);
   border-top: 1px solid var(--mc-border-weak);
   padding: 10px 14px 12px;
 }

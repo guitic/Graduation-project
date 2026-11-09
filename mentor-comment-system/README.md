@@ -5,9 +5,11 @@
 - 前端：Vue 3 + Vite + Element Plus + ECharts（含 echarts-wordcloud）
 - 后端：Spring Boot 3.2.5 + MyBatis-Plus + Sa-Token + HanLP（分词）
 - 情感分析：**情感词典法**（正向/负向/否定/程度词），可解释、可复现
+- 学生反馈：**学生对点评的回应**（有帮助 / 帮助不大 + 补充说明），可修改；导师只读可见，**不进统计、不改状态、不构成评分**
 - AI 预审：**规则引擎**（9 条规则 + 风险分 + 意见草稿），只给建议、不改状态
 - AI 摘要建议：**Spring AI（ChatClient）+ 规则实现双通道**，默认关闭；关闭 / 断网 / 无 Key / 模型超时时自动回落规则实现，接口结构不变
 - AI 小助手：**全局悬浮对话面板**，三角色可见（学生=学习助手 / 导师=写作助手 / 教务=口径助手）；Key 复用教务端配置；按用户限流（12 次/分、150 次/日）
+- 主题：**亮 / 暗双主题**，默认跟随系统，顶栏一键切换并持久化；状态色、情感色、图表配色各有一套暗色值（不是简单反色）
 - 数据库：MySQL 8（默认） / H2 内存库（`demo` 演示模式，零依赖）
 
 ---
@@ -79,7 +81,7 @@ npm run dev
 
 **方式 A：教务后台填写（推荐，不用重启）**
 
-`admin` 登录 → 侧边栏「AI 配置」→ 选服务商（DeepSeek / 通义 / 自定义）→ 填 API Key → 保存 → 点「测试连接」。
+`admin` 登录 → 侧边栏「系统设置」→ AI 配置 → 选服务商（DeepSeek / 通义 / 自定义）→ 填 API Key → 保存 → 点「测试连接」。
 保存即生效，**全体导师共用这一份 Key**，不需要重启、不需要改环境变量。
 
 **方式 B：环境变量（适合 CI / 容器）**
@@ -108,7 +110,7 @@ mvn -s ../maven-settings.xml spring-boot:run -Dspring-boot.run.profiles=demo
 
 > **模型名不要猜**。厂商文档里的展示名常与接口 ID 不一致（商汤是 `sensenova-6.8-flash-lite`，
 > 不是 `sense-nova-...`），填错只会得到 `404 model is not found`。
-> 「AI 配置」页的模型名是**可搜索下拉**，先保存 Key，再点旁边的「拉取」，
+> 「系统设置 → AI 配置」页的模型名是**可搜索下拉**，先保存 Key，再点旁边的「拉取」，
 > 会调用 `GET /v1/models` 列出该账号实际可用的模型。
 
 > **关于 `/v1`（最容易踩的坑）**：厂商文档给的 `base_url` 通常自带 `/v1`
@@ -190,16 +192,31 @@ mvn -s ../maven-settings.xml spring-boot:run -Dspring-boot.run.profiles=demo
 2. **看口径**：每张图下方都有「口径行」，说明算的是什么、门槛是多少。
 3. **验门槛**：班级筛选切到「计科2207」→ 情感分布、词云变空态；切到「计科2205」→ 恰好放行。
 4. **验桶级门禁**：切回「全部」或「计科2208」，点趋势图 4 月柱子 → 该月样本 1 条，下钻被禁用（整体充足 ≠ 单个桶充足）。
-5. **审核闭环**：审核队列 → 选一条 → 分别演示「通过发布 / 仅通过 / 退回 / 驳回」（意见字数门槛 5/10/10/20）。
-6. **双维度**：发布管理 → 待发布 tab 发布；已发布 tab 撤回（≥10 字理由）→ 学生端立即不可见。
+5. **审核闭环**：侧边栏「审核与发布」→ 待审核 → 选一条 → 分别演示「通过发布 / 仅通过 / 退回 / 驳回」。
+   意见**不限字数**：不想打字就点输入框下方的「常用理由」下拉，选中即填入（同意 / 不同意分组），两个字也能提交。
+   （一级菜单只有 4 项：统计报表 / 审核与发布 / 师生管理 / 系统设置。待审核 → 待发布 → 已发布 是同一条流程的三段，做成了页面内二级 tab。）
+6. **双维度**：仍在「审核与发布」页，切到待发布 tab 发布；已发布 tab 撤回（理由同样可从常用理由里选）→ 学生端立即不可见。三个 tab 连续走完一条流程，不用来回换菜单。
 7. **可解释性**：审核详情抽屉展示情感命中词、权重、是否被否定。
-8. **AI 预审**：审核队列每行有「AI 预审」徽章；打开详情看问题清单（命中片段在正文里高亮）与建议意见，点「填入审核意见」预填草稿——**状态仍要人点按钮才变**。现场造一条 30 字套话点评，预审会直接判「建议退回」。
+8. **AI 预审**：待审核列表每行有「AI 预审」徽章；打开详情看问题清单（命中片段在正文里高亮）与建议意见，点「填入审核意见」预填草稿——**状态仍要人点按钮才变**。现场造一条 30 字套话点评，预审会直接判「建议退回」。
 9. **学生端**：`student01 / 123456` → 只能看到本人已发布点评的 5 个字段（无审核意见、无情感标签）。
 10. **导师画像**：`teacher01 / 123456` → 侧边栏「我的画像」→ 情感分布 + 趋势 + 词云。数据只有本人 40 条，不是全院 56 条；页面上没有审核队列统计（那是教务指标）。
 11. **AI 摘要建议**：「我的点评」→ 新建点评 → 写 30 字以上正文 → 点「生成摘要建议」→ 展示摘要 + 最多 3 条改进建议。默认显示「规则生成」（黄标）；配了 Key 后显示「模型生成」（蓝标）。降级时卡片底部会写明原因。
-12. **AI 配置（跨角色生效）**：`admin` → 「AI 配置」→ 填 Key → 保存 → 点「测试连接」看到成功；**不重启**直接切到 `teacher01`，点「生成摘要建议」标签变蓝（模型生成）。再回后台点「清除密钥」→ 导师端立刻退回黄标。
+12. **AI 配置（跨角色生效）**：`admin` → 侧边栏「系统设置」→ AI 配置 → 填 Key → 保存 → 点「测试连接」看到成功；**不重启**直接切到 `teacher01`，点「生成摘要建议」标签变蓝（模型生成）。再回后台点「清除密钥」→ 导师端立刻退回黄标。
 13. **师生档案维护**：「师生管理」→ 新增导师（工号即登录名，保存后弹一次初始密码）→ 用该账号登录成功；再试停用 `teacher01`，会被拦下并报出「还有 12 条未完结点评」，二次确认后才强制停用，停用后该账号登录返回 403。
 14. **AI 小助手**：任意角色点右下角悬浮按钮 → 面板按角色给出不同快捷问题（学生是"帮我制定复习计划"，教务是"k=5 是什么意思"）→ 提问后看回复。同一份 Key，三种提示词，互不串味。
+15. **导出报表**：`admin` → 统计报表 → 右上「导出报表」→ 下载 xlsx。打开可见两个 sheet：「汇总」（流程指标 + 情感分布 + 口径说明）与「点评明细」。
+    **验口径**：明细行数必须等于页面上「已发布」的 KPI 数——两者都只经 `CommentScope.published()`，实测 56 = 56。
+    切到「计科2207」再导出 → 返回 400「没有已发布的点评」，而不是给一个只有表头的空文件。
+16. **操作日志**：侧边栏「系统设置」→ 操作日志 → 种子数据已留下 74 条痕迹（提交审核 / 审核通过并发布 / 退回修改 / 驳回）。
+    按动作、角色、操作人、日期范围筛选；现场做一次审核，日志里立刻多一条。
+    **验权限**：用 `student01` 的 token 直接请求 `/api/oper-log/page` → 403，日志不是"前端隐藏菜单"。
+17. **修改密码**：任意角色 → 右上角头像 → 修改密码 → 当前密码 + 新密码（8-32 位，含字母和数字），三条规则实时勾选。
+    提交成功后**当前会话立即失效**并跳回登录页；旧 token 再请求返回 401，旧密码登录失败，新密码登录成功。
+    日志页会多一条「修改密码」记录，操作人为本人。
+18. **学生反馈**：`student01` → 我的点评 → 打开详情 → 底部「这条点评对你有帮助吗？」→ 选「有帮助」并写一句补充说明 → 提交。
+    提交后立刻变成只读态（标签 + 时间 + 「修改」），列表卡片出现「已反馈」标记；再点「修改」可改成「帮助不大」并清空文本。
+    切到 `teacher01` → 我的点评 → 打开同一条 → 详情里出现「学生反馈」区块，**只有只读展示，没有回复框**。
+    种子数据给其他学生预置了反馈（约 1/4 是「帮助不大」），唯独 `student01` 那条留空，就是为了现场演示这个流程。
 
 ---
 
@@ -216,6 +233,11 @@ mvn -s ../maven-settings.xml spring-boot:run -Dspring-boot.run.profiles=demo
 9. **降级实现必须独立可用**：规则版摘要用已有的情感结论 + 预检问题清单拼装，断网 / 无 Key / 限流时表现一致。只在模型可用时才有输出的功能，本质是把系统可用性外包给第三方。
 10. **越权在协议层不成立**：导师画像接口的 `teacherId` 由后端从登录态取，请求里传了也不生效；学生端的情感标签与审核意见在 Service 层就置空，不是"前端不显示"。
 11. **停用而非删除**：师生档案被点评、审核记录、操作日志引用，物理删除会让历史报表出现"无主点评"。停用导师时若存在未完结点评（草稿/待审核/退回）默认拒绝并报出条数——否则这些点评会永久卡在流程里，而流程规范正是本系统的研究目的。
+12. **导出不是第二条数据通道**：导出的明细必须来自 `CommentScope.published()`，与页面同源。若导出自己写 `where status='APPROVED'`，撤回过的点评会重新出现在 Excel 里，而页面上已经看不到——这种不一致在文件里完全看不出来，只有"明细行数 == 已发布数"的断言能守住。
+13. **改密码的语义是旧凭证作废**：只改数据库不踢会话，攻击者用旧密码登录拿到的 token 依然有效。因此改密成功后 `logout(userId)` 踢掉该账号全部会话，且**先记审计日志再登出**——反过来会得到一条"匿名改密"，恰恰是审计最需要看清的场景。
+14. **反馈不是评分**：`helpful` 描述的是「这条点评对我的帮助」，不是「导师好不好」。三条边界写在建表注释里：不参与情感统计口径、不影响点评状态机、不进任何导师考核报表。导师**可读不可回**（不给回复框），否则反馈会变成辩论。
+15. **反馈的可见范围必须与点评一致**：提交走的是同一个 `assertCanView`，所以点评被撤回后学生连反馈入口都没有。若另写一套判断，就会出现「看不到点评却能给它写反馈」的裂缝，而这条数据仍会出现在导师端。
+16. **入口按「流程」合并，不按「表」拆分**：待审核 → 待发布 → 已发布 是同一条流程的三段，拆成三个一级菜单等于让教务每走一步换一次侧边栏。合并后一级菜单 6 → 4，二级 tab 状态写进 URL query——刷新、复制链接、前进后退都停在原处。旧路由（`/audit`、`/unpublished`、`/ai-config`、`/oper-log`）保留重定向，书签与答辩 PPT 里的旧链接不会变成"页面不存在"。
 
 ---
 
@@ -240,7 +262,7 @@ mentor-comment-system/
 ├── frontend/                # Vue 3 前端
 │   └── src/
 │       ├── api/             # axios 封装 + 各模块接口
-│       ├── components/      # StatusTag / SentimentTag / AuditTimeline / GateEmpty / dashboard/*
+│       ├── components/      # StatusTag / SentimentTag / AuditTimeline / GateEmpty / ChangePasswordDialog / admin/SectionTabs / dashboard/*
 │       ├── composables/     # useChart（ECharts 生命周期）
 │       ├── layouts/         # AppLayout（角色菜单）
 │       ├── views/           # Login / Dashboard / teacher / admin / student
@@ -256,7 +278,7 @@ mentor-comment-system/
 
 | 模块 | 路径 | 说明 |
 | --- | --- | --- |
-| 认证 | `POST /api/auth/login` · `GET /api/auth/me` · `GET /api/demo/accounts` | 登录/当前用户/演示账号（非 demo 返回空） |
+| 认证 | `POST /api/auth/login` · `GET /api/auth/me` · `POST /api/auth/password` · `GET /api/demo/accounts` | 登录/当前用户/修改本人密码（成功即踢掉全部会话）/演示账号（非 demo 返回空） |
 | 元数据 | `GET /api/meta/limits` | 门槛单一来源：审核意见字数 + 隐私样本量，前端文案由此渲染 |
 | 点评 | `/api/comment/page` · `/admin-page` · `/student-page` · `/{id}` · `POST/PUT/DELETE` · `/{id}/submit` | 三端列表 + 增改删 + 提交 |
 | 审核 | `/api/audit/pending` · `/unpublished` · `/published` · `/{id}/approve|return|reject|publish|unpublish` · `/{id}/history` | 审核与发布/撤回 |
@@ -265,10 +287,12 @@ mentor-comment-system/
 | AI 小助手 | `POST /api/ai/chat` | 多轮对话，三角色可用；场景由后端按角色决定；按用户限流；无 Key 时返回说明文案（`source=DISABLED`）不报错 |
 | AI 配置 | `GET /api/ai/config` · `PUT /api/ai/config` · `POST /api/ai/config/test` · `GET /api/ai/models` | 仅教务。Key 存 `sys_config` 表，**填一次全体导师生效**；读取只返回掩码；保存即生效；`/models` 拉取账号可用模型 |
 | 报表 | `/api/report/dashboard` · `/sentiment` · `/trend` · `/audit-stat` · `/wordcloud` · `/word-detail` · `/trend-point` · `/comment/{id}/sentiment` | 统计与下钻（教务） |
+| 导出 | `GET /api/report/export` | xlsx（汇总 + 明细两个 sheet），口径复用 `CommentScope.published()`；上限 5000 条 |
+| 操作日志 | `GET /api/oper-log/page` · `/actions` | 关键动作留痕查询（仅教务，只读） |
 | 导师画像 | `GET /api/report/my-dashboard` | 本人已发布点评的情感/趋势/词云；`teacherId` 由登录态强制注入，不接受请求参数 |
 | 人员 | `/api/person/teachers` · `/teachers/all` · `/my-students` · `/students` · `/clazz` · `/terms` · `/bind` · `/bind/{id}` | 师生关系与档案查询 |
 | 档案维护 | `POST/PUT /api/person/teachers[/{id}]` · `/{id}/disable?force=` · `/{id}/enable` · 学生同构 · `POST /api/person/users/{id}/reset-password` | 仅教务；新建时同步建账号（用户名 = 工号/学号） |
-| 学生 | `/api/student-comment/page` · `/{id}` | 学生仅 5 字段 |
+| 学生 | `/api/student-comment/page` · `/{id}` · `POST /{id}/feedback` | 学生仅 5 字段 + 本人反馈；反馈对象是「这条点评对我的帮助」，不进统计、不改状态 |
 
 > 所有响应统一为 `{ code, msg, data }`，`code=0` 表示成功。鉴权令牌放在请求头 `satoken`。
 
@@ -277,16 +301,16 @@ mentor-comment-system/
 ## 八、质量门禁
 
 ```bash
-cd backend  && mvn -s ../maven-settings.xml test    # Checkstyle 0 违规 + 77 个测试
+cd backend  && mvn -s ../maven-settings.xml test    # Checkstyle 0 违规 + 95 个测试
 cd ../frontend && npm run check                     # ESLint 0 error + Prettier 一致 + 构建通过
 cd .. && sh scripts/check-schema-sync.sh            # 两份 schema 同源
 ```
 
 | 测试类 | 数量 | 守住什么 |
 | --- | --- | --- |
-| `AuditStateMachineTest` | 21 | 七个事件类型、字数门槛分档、条件化 UPDATE（影响 0 行 → 409）、发布才触发分析 |
+| `AuditStateMachineTest` | 21 | 七个事件类型、意见不限字数（空/超 500 字被拒）、条件化 UPDATE（影响 0 行 → 409）、发布才触发分析 |
 | `AuditPermissionTest` | 10 | 学生/导师/管理员 × 本人/他人 × 已发布/未发布；history 越权回归守卫 |
-| `RulePrecheckEngineTest` | 11 | 等级映射（PASS/REVIEW/RETURN → 四个动作）、九条规则检出、意见草稿不低于字数门槛 |
+| `RulePrecheckEngineTest` | 11 | 等级映射（PASS/REVIEW/RETURN → 四个动作）、九条规则检出、意见草稿为完整可读句 |
 | `PrecheckReuseTest` | 4 | `content_hash + rule_version` 双匹配复用、规则升级必须重算、非教务 403 |
 | `AiRuntimeConfigTest` | 7 | baseUrl 归一化：剥 `/v1`、保留路径前缀、不误伤 `/v1beta`、空值不抛异常 |
 | `AiErrorMessagesTest` | 6 | 错误翻译：`404 model is not found`、401、超时、连接拒绝、被包装的 404、未知错误兜底 |
@@ -295,4 +319,8 @@ cd .. && sh scripts/check-schema-sync.sh            # 两份 schema 同源
 | `LlmSummarySuggesterTest` | 5 | Spring AI 在 Boot 3.2.5 下可构建（`OpenAiApi → OpenAiChatModel → ChatClient`）、无 Key/未启用不抛异常、端点不可达必抛、**教务改配置后立即生效** |
 | `RuleSummarySuggesterTest` | 4 | 降级实现是默认路径：情绪结论、主题词、建议条数上限、空问题也给收尾建议 |
 | `SentimentEvalTest` | 1 | 情感分析准确率 82.7% / Kappa 0.74（固定验证集，防方法退化） |
+| `ChangePasswordTest` | 5 | 旧密码校验、长度/字母数字强度、新旧不能相同、成功即踢掉全部会话 |
+| `OperLogQueryTest` | 3 | 日志查询与动作清单仅教务可用（403 且不触达数据库） |
+| `ReportExportTest` | 4 | **明细行数严格等于已发布条数**、空结果 400、超量拒绝、样本不足占比写「—」 |
+| `FeedbackTest` | 6 | 导师不能提交、helpful 为 null 不被静默当 false、对他人/未发布点评 403、归属取自点评、清空内容必须真正写入 |
 

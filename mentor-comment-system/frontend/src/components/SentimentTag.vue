@@ -3,7 +3,9 @@
     <i class="dot" />
     {{ meta.label }}<template v-if="lowConfidence"> · 低置信</template>
   </span>
-  <span v-else class="mc-pill" style="color: var(--mc-text-4); background: #f7f8fa">未分析</span>
+  <span v-else class="mc-pill" style="color: var(--mc-text-4); background: var(--mc-surface-3)"
+    >未分析</span
+  >
 </template>
 
 <script setup>
@@ -17,7 +19,11 @@ const props = defineProps({
 
 const meta = computed(() => sentimentMeta(props.label))
 const bg = computed(() => {
-  const map = { POSITIVE: '#e6f7ee', NEUTRAL: '#f2f3f5', NEGATIVE: '#fee2e2' }
-  return map[props.label] || '#f7f8fa'
+  const map = {
+    POSITIVE: 'var(--sn-pos-bg)',
+    NEUTRAL: 'var(--sn-neu-bg)',
+    NEGATIVE: 'var(--sn-neg-bg)'
+  }
+  return map[props.label] || 'var(--mc-surface-3)'
 })
 </script>

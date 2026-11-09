@@ -29,6 +29,7 @@ import 'echarts-wordcloud'
 import ChartCard from './ChartCard.vue'
 import GateEmpty from '../GateEmpty.vue'
 import { useChart } from '../../composables/useChart'
+import { useChartTheme } from '../../composables/useChartTheme'
 
 /**
  * 词云。
@@ -46,6 +47,7 @@ const emit = defineEmits(['drill'])
 
 const el = ref(null)
 const enough = computed(() => !!props.data?.enough)
+const palette = useChartTheme()
 
 /**
  * 词云配色：单一主色相 + 按词频调明度。
@@ -55,9 +57,9 @@ const enough = computed(() => !!props.data?.enough)
  */
 function wordColor(i, n) {
   const t = n <= 1 ? 0 : i / (n - 1) // 0 = 最高频
-  // 30% → 54%：最深给高频词，最浅一级对白底仍有 ~4.5:1，
-  // 低频词字号只有 13px，再浅就读不清了
-  return `hsl(224, 66%, ${30 + t * 24}%)`
+  // 明度区间由主题给：亮色 30%→54%（对白底 ~4.5:1），暗色 62%→84%
+  const { wordFrom, wordTo } = palette.value
+  return `hsl(224, 66%, ${wordFrom + t * (wordTo - wordFrom)}%)`
 }
 
 function buildOption() {
@@ -107,4 +109,7 @@ watch(
   () => nextTick(render),
   { deep: true }
 )
+
+// 词色是渲染时算好的，换主题必须重绘，否则深色背景上留一片深蓝字
+watch(palette, () => nextTick(render))
 </script>

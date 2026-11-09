@@ -20,16 +20,10 @@ const routes = [
         meta: { roles: ['ADMIN'], title: '统计报表' }
       },
       {
-        path: 'audit',
-        name: 'audit',
-        component: () => import('../views/admin/AuditQueue.vue'),
-        meta: { roles: ['ADMIN'], title: '审核队列' }
-      },
-      {
-        path: 'unpublished',
-        name: 'unpublished',
-        component: () => import('../views/admin/Unpublished.vue'),
-        meta: { roles: ['ADMIN'], title: '待发布 / 已撤回' }
+        path: 'review',
+        name: 'review',
+        component: () => import('../views/admin/Review.vue'),
+        meta: { roles: ['ADMIN'], title: '审核与发布' }
       },
       {
         path: 'people',
@@ -38,11 +32,20 @@ const routes = [
         meta: { roles: ['ADMIN'], title: '师生管理' }
       },
       {
-        path: 'ai-config',
-        name: 'ai-config',
-        component: () => import('../views/admin/AiConfig.vue'),
-        meta: { roles: ['ADMIN'], title: 'AI 配置' }
+        path: 'settings',
+        name: 'settings',
+        component: () => import('../views/admin/Settings.vue'),
+        meta: { roles: ['ADMIN'], title: '系统设置' }
       },
+      /*
+       * 旧入口保留重定向。
+       * 侧边栏已经不再显示它们，但书签、演示脚本、答辩 PPT 里的链接可能还是旧的，
+       * 直接删掉会得到"页面不存在"——那是最没必要的故障。
+       */
+      { path: 'audit', redirect: { path: '/review', query: { tab: 'pending' } } },
+      { path: 'unpublished', redirect: { path: '/review', query: { tab: 'unpublished' } } },
+      { path: 'ai-config', redirect: { path: '/settings', query: { tab: 'ai' } } },
+      { path: 'oper-log', redirect: { path: '/settings', query: { tab: 'log' } } },
       {
         path: 'my-stats',
         name: 'my-stats',

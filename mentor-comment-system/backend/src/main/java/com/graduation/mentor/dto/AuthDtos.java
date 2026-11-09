@@ -31,6 +31,20 @@ public class AuthDtos {
         private String clazzName;
     }
 
+    /**
+     * 修改本人密码。
+     *
+     * <p>只收旧密码与新密码两个字段：确认密码是纯前端交互，后端不重复校验—— 后端一旦也校验，两处规则就必须同步，否则会出现"前端放行、后端拒绝"。
+     */
+    @Data
+    public static class ChangePasswordReq {
+        @NotBlank(message = "请输入当前密码")
+        private String oldPassword;
+
+        @NotBlank(message = "请输入新密码")
+        private String newPassword;
+    }
+
     @Data
     public static class MeResp {
         private Long userId;

@@ -154,6 +154,31 @@ public class StatDtos {
     }
 
     /**
+     * KPI 卡下钻明细（点卡片看这批点评）。
+     *
+     * <p>label / caliber 由后端下发而不是前端硬编码：口径说明与查询条件是同一处代码产出的， 改了口径不会出现"文案说全量、SQL 却带筛选"的错位。
+     */
+    @Data
+    public static class KpiDetail {
+        /**
+         * 指标 key：total / published / pending / unpublished / returned / rejected / lowConfidence
+         */
+        private String kpi;
+
+        private String label;
+
+        /** 口径说明：这批数据是否受学期/导师/班级筛选影响 */
+        private String caliber;
+
+        private long total;
+        private long page;
+        private long size;
+
+        /** 明细行：与点评列表同一个 Row，字段完全一致 */
+        private List<CommentDtos.Row> records;
+    }
+
+    /**
      * 导师端个人画像。
      *
      * <p><b>刻意不含 {@link AuditStat}</b>：审核队列长度、退回率是教务的管理指标， 给导师看等于把全院的流程压力摊到个人身上，且这些数字与"我的指导质量"无关。
